@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Finder Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-6">
+                    <div class="flex items-center">
+                        <h1 class="text-3xl font-bold text-gray-900">🤖 Business Finder Pro</h1>
+                        <span class="ml-4 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                            Global Leads
+                        </span>
+                        <span id="status-indicator" class="ml-4 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center">
+                            <span class="inline-block w-2 h-2 bg-green-600 rounded-full mr-2 animate-pulse"></span>
+                            Live Monitoring
+                        </span>
+                    </div>
+                    <button onclick="exportData()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
+                        📤 Export Leads
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-700">Total Businesses</h3>
+                    <p id="total-businesses" class="text-3xl font-bold text-primary mt-2">0</p>
+                    <p id="total-change" class="text-sm text-green-600 mt-1">+0 this session</p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-700">Analyzed Websites</h3>
+                    <p id="analyzed" class="text-3xl font-bold text-secondary mt-2">0</p>
+                    <p id="analysis-progress" class="text-sm text-blue-600 mt-1">0% complete</p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-700">High Priority Leads</h3>
+                    <p id="high-priority" class="text-3xl font-bold text-red-500 mt-2">0</p>
+                    <p id="priority-trend" class="text-sm text-red-600 mt-1">Actionable leads</p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-700">Avg. Website Score</h3>
+                    <p id="avg-score" class="text-3xl font-bold text-yellow-500 mt-2">0</p>
+                    <p id="score-status" class="text-sm text-gray-600 mt-1">Quality metric</p>
+                </div>
+            </div>
+
+            <!-- Charts Row 1 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Lead Priority Distribution</h3>
+                    <canvas id="priorityChart"></canvas>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Top Categories</h3>
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Niche Opportunities Section -->
+            <div class="bg-white rounded-lg shadow p-6 mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-700">🎯 Niche Opportunities</h3>
+                    <span class="text-sm text-gray-500">High-value leads in underserved markets</span>
+                </div>
+                <div id="niche-opportunities" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Niche cards will be populated here -->
+                </div>
+            </div>
+
+            <!-- Priority Leads Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-red-50 rounded-lg border border-red-200 p-6">
+                    <h4 class="text-red-900 font-semibold mb-2">🔴 High Priority</h4>
+                    <p id="high-leads-count" class="text-2xl font-bold text-red-600">0</p>
+                    <p class="text-sm text-red-700 mt-2">Immediate action needed</p>
+                </div>
+                <div class="bg-yellow-50 rounded-lg border border-yellow-200 p-6">
+                    <h4 class="text-yellow-900 font-semibold mb-2">🟡 Medium Priority</h4>
+                    <p id="medium-leads-count" class="text-2xl font-bold text-yellow-600">0</p>
+                    <p class="text-sm text-yellow-700 mt-2">Can be improved</p>
+                </div>
+                <div class="bg-green-50 rounded-lg border border-green-200 p-6">
+                    <h4 class="text-green-900 font-semibold mb-2">🟢 Low Priority</h4>
+                    <p id="low-leads-count" class="text-2xl font-bold text-green-600">0</p>
+                    <p class="text-sm text-green-700 mt-2">Already optimized</p>
+                </div>
+            </div>
+
+
+            <!-- Lead Tabs -->
+            <div class="bg-white rounded-lg shadow mb-8">
+                <div class="border-b flex">
+                    <button onclick="switchLeadTab('high')" class="lead-tab px-6 py-4 font-semibold text-gray-700 border-b-2 border-red-500" data-tab="high">
+                        🔴 High Priority Leads
+                    </button>
+                    <button onclick="switchLeadTab('medium')" class="lead-tab px-6 py-4 font-semibold text-gray-700 border-b-2 border-transparent hover:text-gray-900" data-tab="medium">
+                        🟡 Medium Priority Leads
+                    </button>
+                    <button onclick="switchLeadTab('niche')" class="lead-tab px-6 py-4 font-semibold text-gray-700 border-b-2 border-transparent hover:text-gray-900" data-tab="niche">
+                        ⭐ Niche Opportunities
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Business
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Category
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Lead Score
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Website Score
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Quality
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Contact
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="leads-table" class="bg-white divide-y divide-gray-200">
+                            <!-- Leads will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Track previous values to show changes
+        let previousTotal = 0;
+        let previousAnalyzed = 0;
+        let sessionStartTime = new Date();
+        let currentLeadTab = 'high';
+        
+        async function loadStats() {
+            const response = await fetch('/api/stats');
+            const stats = await response.json();
+            
+            // Update stat cards
+            document.getElementById('total-businesses').textContent = stats.total.toLocaleString();
+            document.getElementById('analyzed').textContent = stats.analyzed.toLocaleString();
+            document.getElementById('high-priority').textContent = stats.lead_distribution.high.toLocaleString();
+            
+            // Update lead priority counts
+            document.getElementById('high-leads-count').textContent = stats.lead_distribution.high;
+            document.getElementById('medium-leads-count').textContent = stats.lead_distribution.medium;
+            document.getElementById('low-leads-count').textContent = stats.lead_distribution.low;
+            
+            // Calculate and show changes
+            const totalChange = stats.total - previousTotal;
+            const analyzedChange = stats.analyzed - previousAnalyzed;
+            
+            // Update change indicators
+            if (totalChange > 0) {
+                document.getElementById('total-change').textContent = `+${totalChange} this session`;
+                document.getElementById('total-change').className = 'text-sm text-green-600 mt-1 font-bold';
+            }
+            
+            if (analyzedChange > 0) {
+                document.getElementById('analysis-progress').textContent = `+${analyzedChange} analyzed`;
+                document.getElementById('analysis-progress').className = 'text-sm text-blue-600 mt-1 font-bold';
+            }
+            
+            // Calculate analysis progress percentage
+            if (stats.total > 0) {
+                const progressPercent = Math.round((stats.analyzed / stats.total) * 100);
+                document.getElementById('analysis-progress').textContent = `${progressPercent}% analyzed`;
+            }
+            
+            // Calculate average score
+            const total = stats.score_distribution.high + stats.score_distribution.medium + stats.score_distribution.low;
+            const avgScore = total > 0 ? Math.round((stats.score_distribution.high * 85 + stats.score_distribution.medium * 55 + stats.score_distribution.low * 20) / total) : 0;
+            document.getElementById('avg-score').textContent = avgScore;
+            
+            // Show score status
+            if (avgScore < 50) {
+                document.getElementById('score-status').textContent = '🔴 Needs work';
+                document.getElementById('score-status').className = 'text-sm text-red-600 mt-1 font-bold';
+            } else if (avgScore < 70) {
+                document.getElementById('score-status').textContent = '🟡 Could improve';
+                document.getElementById('score-status').className = 'text-sm text-yellow-600 mt-1 font-bold';
+            } else {
+                document.getElementById('score-status').textContent = '🟢 Good quality';
+                document.getElementById('score-status').className = 'text-sm text-green-600 mt-1 font-bold';
+            }
+            
+            // Update charts
+            updatePriorityChart(stats.lead_distribution);
+            updateCategoryChart(stats.categories);
+            
+            // Load niche opportunities
+            loadNicheOpportunities(stats.niche_opportunities);
+            
+            // Load leads
+            loadLeads(currentLeadTab);
+            
+            // Update tracking values for next iteration
+            previousTotal = stats.total;
+            previousAnalyzed = stats.analyzed;
+        }
+        
+        function updatePriorityChart(distribution) {
+            const ctx = document.getElementById('priorityChart').getContext('2d');
+            // Destroy existing chart if it exists
+            if (window.priorityChart) {
+                window.priorityChart.destroy();
+            }
+            
+            const total = distribution.high + distribution.medium + distribution.low;
+            
+            window.priorityChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: [
+                        `High Priority (${distribution.high})`,
+                        `Medium Priority (${distribution.medium})`,
+                        `Low Priority (${distribution.low})`
+                    ],
+                    datasets: [{
+                        data: [distribution.high || 0, distribution.medium || 0, distribution.low || 0],
+                        backgroundColor: ['#ef4444', '#f59e0b', '#10b981'],
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                    return `${value} leads (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateCategoryChart(categories) {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            // Destroy existing chart if it exists
+            if (window.categoryChart) {
+                window.categoryChart.destroy();
+            }
+            
+            window.categoryChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: categories.map(c => c.name.substring(0, 15)),
+                    datasets: [{
+                        label: 'Businesses',
+                        data: categories.map(c => c.count),
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 4
+                    }, {
+                        label: 'Avg Lead Score',
+                        data: categories.map(c => (c.avg_lead_score || 0) / 10),
+                        backgroundColor: '#10b981',
+                        borderRadius: 4,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Count' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            max: 10,
+                            title: { display: true, text: 'Score' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function loadNicheOpportunities(niches) {
+            const container = document.getElementById('niche-opportunities');
+            container.innerHTML = '';
+            
+            if (!niches || niches.length === 0) {
+                container.innerHTML = '<p class="col-span-3 text-gray-500">No niche opportunities found yet</p>';
+                return;
+            }
+            
+            niches.forEach(niche => {
+                const card = document.createElement('div');
+                card.className = 'bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4 hover:shadow-lg transition';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <h4 class="font-semibold text-gray-900 flex-1">${niche.name}</h4>
+                        <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">${niche.avg_lead_score}</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-3">${niche.count} ${niche.count === 1 ? 'business' : 'businesses'} in this niche</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-500">Avg Lead Score</span>
+                        <div class="w-16 bg-gray-200 rounded-full h-2">
+                            <div class="bg-purple-600 h-2 rounded-full" style="width: ${Math.min(niche.avg_lead_score * 10, 100)}%"></div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+        
+        function switchLeadTab(tab) {
+            currentLeadTab = tab;
+            
+            // Update tab styling
+            document.querySelectorAll('.lead-tab').forEach(btn => {
+                btn.classList.remove('border-b-2', 'border-red-500', 'border-yellow-500', 'border-purple-500');
+                btn.classList.add('border-b-2', 'border-transparent');
+            });
+            
+            const activeBtn = document.querySelector(`[data-tab="${tab}"]`);
+            activeBtn.classList.remove('border-transparent');
+            if (tab === 'high') {
+                activeBtn.classList.add('border-b-2', 'border-red-500');
+            } else if (tab === 'medium') {
+                activeBtn.classList.add('border-b-2', 'border-yellow-500');
+            } else {
+                activeBtn.classList.add('border-b-2', 'border-purple-500');
+            }
+            
+            loadLeads(tab);
+        }
+        
+        async function loadLeads(type = 'high') {
+            const response = await fetch(`/api/leads?type=${type}&limit=20`);
+            const leads = await response.json();
+            
+            const tableBody = document.getElementById('leads-table');
+            tableBody.innerHTML = '';
+            
+            if (leads.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No leads found</td></tr>';
+                return;
+            }
+            
+            leads.forEach(lead => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                
+                const priorityColor = lead.lead_score >= 70 ? 'red' : lead.lead_score >= 40 ? 'yellow' : 'green';
+                const priorityEmoji = lead.lead_score >= 70 ? '🔴' : lead.lead_score >= 40 ? '🟡' : '🟢';
+                
+                const qualityIndicators = [];
+                if (lead.has_ssl) qualityIndicators.push('🔒 SSL');
+                if (lead.mobile_friendly) qualityIndicators.push('📱 Mobile');
+                if (lead.has_contact_form) qualityIndicators.push('💬 Form');
+                if (!lead.needs_redesign) qualityIndicators.push('✨ Design');
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div>
+                                <div class="font-medium text-gray-900">${lead.name || 'N/A'}</div>
+                                <div class="text-sm text-gray-500">${lead.locality || ''}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="text-sm text-gray-600">${lead.category || 'N/A'}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <span class="text-lg">${priorityEmoji}</span>
+                            <span class="ml-2 font-bold text-${priorityColor}-600">${lead.lead_score || 0}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-3 py-1 text-sm font-semibold rounded-full ${
+                            lead.website_score >= 70 ? 'bg-green-100 text-green-800' :
+                            lead.website_score >= 40 ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                        }">${lead.website_score || 0}/100</span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex flex-wrap gap-1">
+                            ${qualityIndicators.map(ind => `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">${ind}</span>`).join('')}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            ${lead.phone ? `<a href="tel:${lead.phone}" title="Call" class="text-green-500 hover:text-green-700">📞</a>` : ''}
+                            ${lead.email ? `<a href="mailto:${lead.email}" title="Email" class="text-blue-500 hover:text-blue-700">✉️</a>` : ''}
+                            ${lead.website ? `<a href="${lead.website}" target="_blank" title="Website" class="text-blue-500 hover:text-blue-700">🌐</a>` : ''}
+                        </div>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+        
+        async function exportData() {
+            window.location.href = '/api/export';
+        }
+        
+        // Initial load
+        loadStats();
+        
+        // Refresh every 2 seconds
+        setInterval(loadStats, 2000);
+    </script>
+                            ${lead.website ? lead.website.substring(0, 30) + (lead.website.length > 30 ? '...' : '') : 'N/A'}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-lg font-bold ${lead.website_score < 50 ? 'text-red-500' : lead.website_score < 70 ? 'text-yellow-500' : 'text-green-500'}">
+                            ${lead.website_score}/100
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        ${priorityBadge}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-500">${issues.join(', ') || 'None'}</div>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        async function exportData() {
+            const response = await fetch('/api/export');
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `leads_${new Date().toISOString().split('T')[0]}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+        
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', loadStats);
+        
+        // Auto-refresh every 2 seconds for real-time updates
+        setInterval(loadStats, 2000);
+    </script>
+</body>
+</html>
