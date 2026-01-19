@@ -42,8 +42,8 @@ Renovation Automations combines intelligent lead generation, automated demo crea
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/middlechild0/Renovation-Automations.git
-cd Renovation-Automations
+git clone https://github.com/middlechild0/Renovation.git
+cd Renovation
 ```
 
 ### 2. Environment Setup
@@ -60,10 +60,23 @@ pip install -r requirements.txt
 ### 4. Run Scraper
 ```bash
 # Scrape abroad markets (Europe, USA, Canada, Australia)
-python start_abroad_analysis.py
+python scraper/start_abroad_analysis.py
 
 # Export results
-python export_abroad_prospects.py
+python scraper/export_abroad_prospects.py
+```
+
+### Repository Structure
+```
+Renovation/
+├── scraper/             # Core scraper code, analyzers, templates
+├── n8n-workflows/       # n8n workflow JSONs (placeholder)
+├── scripts/             # Additional automation scripts (placeholder)
+├── docs/                # Project documentation
+├── .env.example         # Environment variable template
+├── .gitignore           # Sensitive/data ignores
+├── README.md            # Project overview
+└── requirements.txt     # Python dependencies
 ```
 
 ---
@@ -93,7 +106,7 @@ Total: 595 businesses
 **Usage:**
 ```bash
 # Run analysis
-python start_comprehensive_analysis.py
+python scraper/start_comprehensive_analysis.py
 
 # Query database
 sqlite3 businesses.db "SELECT name, country, website, tier FROM businesses WHERE tier = 1 LIMIT 10"
@@ -106,7 +119,7 @@ sqlite3 businesses.db "SELECT name, country, website, tier FROM businesses WHERE
 - API keys stored in `.env` (git-ignored)
 - Database excluded from version control
 - No hardcoded credentials
-- See [SECURITY_SETUP.md](SECURITY_SETUP.md)
+- See [Security Setup](docs/SECURITY_SETUP.md)
 
 ---
 
@@ -135,9 +148,9 @@ sqlite3 businesses.db "SELECT name, country, website, tier FROM businesses WHERE
 
 ## 📚 Documentation
 
-- [Security Setup](SECURITY_SETUP.md)
-- [Implementation Summary](IMPLEMENTATION_SUMMARY.md)
-- [Deployment Guide](DEPLOYMENT_READY.txt)
+- [Security Setup](docs/SECURITY_SETUP.md)
+- [Implementation Summary](docs/IMPLEMENTATION_SUMMARY.md)
+- [Deployment Guide](docs/DEPLOYMENT_READY.txt)
 
 ---
 
