@@ -149,10 +149,13 @@ def process_lead_with_agents(lead: dict, pause_range=(1.0, 2.5)) -> dict:
     print(f"✓ Saved: {demo_file} ({file_size:.1f} KB)")
     
     # ═══════════════════════════════════════════════════════════════════
-    # DEPLOYMENT (Optional - Vercel)
+    # DEPLOYMENT (Vercel Primary, Lovable Fallback)
     # ═══════════════════════════════════════════════════════════════════
     demo_url = None
     original_dir = os.getcwd()
+    deployment_method = None
+    
+    # Try Vercel first
     try:
         print("\n🚀 Deploying to Vercel...")
         os.chdir("demo_sites")
@@ -168,13 +171,44 @@ def process_lead_with_agents(lead: dict, pause_range=(1.0, 2.5)) -> dict:
             output = result.stdout + result.stderr
             if "vercel.app" in output:
                 demo_url = f"https://demo-sites-batch.vercel.app/{filename}.html"
-                print(f"✓ Deployed: {demo_url}")
+                deployment_method = "vercel"
+                print(f"✓ Deployed to Vercel: {demo_url}")
+            else:
+                raise Exception("No Vercel URL found in output")
         else:
-            demo_url = f"file://{os.path.abspath(demo_file)}"
-            print(f"⚠ Local file: {demo_url}")
+            raise Exception(f"Vercel deployment failed: {result.stderr}")
     except Exception as e:
-        demo_url = f"file://{os.path.abspath(demo_file)}"
-        print(f"⚠ Deployment skipped: {e}")
+        print(f"⚠ Vercel deployment failed: {e}")
+        print("🔄 Attempting Lovable deployment as fallback...")
+        
+        # Fallback to Lovable
+        try:
+            os.chdir(original_dir)
+            # Generate Lovable project/deployment command
+            lovable_project_name = filename.replace("-", "_")
+            result = subprocess.run(
+                ["lovable", "deploy", demo_file, "--project", lovable_project_name],
+                capture_output=True,
+                text=True,
+                timeout=45
+            )
+            
+            if result.returncode == 0:
+                output = result.stdout + result.stderr
+                # Extract Lovable URL from output
+                if "lovable.dev" in output or "lovable" in output:
+                    demo_url = f"https://{lovable_project_name}.lovable.dev"
+                    deployment_method = "lovable"
+                    print(f"✓ Deployed to Lovable: {demo_url}")
+                else:
+                    raise Exception("No Lovable URL found in output")
+            else:
+                raise Exception(f"Lovable deployment failed: {result.stderr}")
+        except Exception as lovable_e:
+            print(f"⚠ Lovable deployment failed: {lovable_e}")
+            demo_url = f"file://{os.path.abspath(demo_file)}"
+            deployment_method = "local"
+            print(f"⚠ Falling back to local file: {demo_url}")
     finally:
         os.chdir(original_dir)
     
@@ -194,8 +228,9 @@ def process_lead_with_agents(lead: dict, pause_range=(1.0, 2.5)) -> dict:
         "current_website_status": lead.get("current_website_status"),
         "tier": lead.get("tier"),
         "demo_url": demo_url,
+        "deployment_method": deployment_method,
         "contact_channel": lead.get("contact_channel", "whatsapp_or_sms"),
-        "host_provider": "vercel" if demo_url and "vercel" in demo_url else "local",
+        "host_provider": "vercel" if deployment_method == "vercel" else ("lovable" if deployment_method == "lovable" else "local"),
         "niche": lead.get("niche"),
         
         # 4-Agent Analysis Outputs
