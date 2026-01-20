@@ -276,6 +276,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate competitive design demos")
     parser.add_argument("leads_json", help="Path to leads JSON file")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of leads")
+    parser.add_argument("--protect", action="store_true", help="Protect demos by appending random tokens to filenames")
     args = parser.parse_args()
     
     # Load leads
@@ -301,6 +302,34 @@ def main():
             continue
     
     elapsed = time.time() - start_time
+    
+    # Optionally protect demo files by appending random tokens
+    if args.protect:
+        print("\n🔐 Protecting demo files with random tokens...")
+        try:
+            import secrets
+            protected_results = []
+            for entry in results:
+                demo_url = entry.get("demo_url")
+                business_name = entry.get("business_name", "demo").lower().replace(" ", "-").replace("_", "-")
+                original_path = f"demo_sites/{business_name}.html"
+                if os.path.exists(original_path):
+                    token = secrets.token_urlsafe(10)
+                    protected_name = f"{business_name}-{token}.html"
+                    protected_path = f"demo_sites/{protected_name}"
+                    os.rename(original_path, protected_path)
+                    # Update demo_url if local or vercel
+                    if demo_url and "vercel" in demo_url:
+                        entry["demo_url"] = demo_url.rsplit('/', 1)[0] + f"/{protected_name}"
+                    else:
+                        entry["demo_url"] = f"file://{os.path.abspath(protected_path)}"
+                    entry["protected"] = True
+                    entry["protected_filename"] = protected_name
+                protected_results.append(entry)
+            results = protected_results
+            print("✓ Demo files protected")
+        except Exception as e:
+            print(f"⚠ Failed to protect demos: {e}")
     
     # Save results
     results_file = "demo_results.json"

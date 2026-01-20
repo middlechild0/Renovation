@@ -8,3 +8,11 @@ flask==3.0.0
 python-dotenv==1.0.0
 tqdm==4.66.1
 googlemaps==4.10.0  # Optional: For enhanced location search
+
+# Security and payments
+stripe>=9.0.0
+cryptography>=41.0.0
+bandit>=1.7.6
+pip-audit>=2.7.3
+pysqlcipher3; platform_system != "Windows"
+jsonschema>=4.21.0

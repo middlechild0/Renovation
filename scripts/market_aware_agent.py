@@ -15,14 +15,28 @@ Every lead is processed through all 4 agents to ensure:
 """
 
 import json
+import sys
+import os
 from typing import Dict, List, Optional
 from datetime import datetime
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from competitive_design_agent import (
     search_competitors,
     generate_design_brief,
     generate_original_palette,
 )
+
+# Import new architecture components (lazy import to avoid circular dependencies)
+try:
+    from Renovation.infrastructure.feature_flags.flag_manager import FeatureFlagManager
+    from Renovation.agents.analysis import TierPresenceAnalyzer, CompetitiveIntelligenceAgent
+    from Renovation.agents.generation import DesignSynthesizer, DemoComposer
+    RENOVATION_AVAILABLE = True
+except ImportError:
+    RENOVATION_AVAILABLE = False
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -540,24 +554,73 @@ def run_market_aware_pipeline(lead: Dict) -> Dict:
     """
     Run the complete 4-agent market-aware pipeline.
     
+    With feature flag support for gradual migration to new architecture.
     Returns comprehensive analysis with all 4 agents' outputs.
     """
-    # AGENT 1: Tier & Presence Analysis
-    tier_analysis = analyze_tier_and_presence(lead)
+    use_new_architecture = False
+    
+    # Check if new architecture is available and enabled
+    if RENOVATION_AVAILABLE:
+        try:
+            flag_manager = FeatureFlagManager()
+            context = {
+                "tier": lead.get("tier", "Tier 1"),
+                "niche": lead.get("niche", ""),
+                "business_name": lead.get("business_name", "")
+            }
+            use_new_architecture = flag_manager.is_enabled("use_new_architecture", context)
+        except Exception as e:
+            print(f"[FEATURE FLAG] Error checking flag, using legacy: {e}")
+            use_new_architecture = False
+    
+    if use_new_architecture:
+        # NEW ARCHITECTURE PATH - Using Renovation agents
+        print(f"[ROUTING] Using NEW Renovation architecture for {lead.get('business_name')}")
+        
+        # AGENT 1: Tier & Presence Analysis
+        tier_agent = TierPresenceAnalyzer()
+        tier_result = tier_agent.run(lead)
+        tier_analysis = tier_result.get("outputs", {})
+        
+        # AGENT 2: Niche Competitive Intelligence
+        intel_agent = CompetitiveIntelligenceAgent()
+        intel_result = intel_agent.run(lead)
+        niche_intel = intel_result.get("outputs", {})
+        
+        # AGENT 3: Original Design Synthesis
+        design_agent = DesignSynthesizer()
+        design_result = design_agent.run(lead)  # Pass lead directly, not wrapped
+        design_synthesis = design_result.get("outputs", {})
+        
+        # AGENT 4: Demo Composition
+        composer_agent = DemoComposer()
+        # Pass lead directly with tier_analysis and design_synthesis as additional fields
+        composer_input = {**lead}
+        composer_input["tier_analysis"] = tier_analysis
+        composer_input["design_synthesis"] = design_synthesis
+        composer_result = composer_agent.run(composer_input)
+        demo_composition = composer_result.get("outputs", {})
+    else:
+        # LEGACY PATH - Original functions
+        print(f"[ROUTING] Using LEGACY functions for {lead.get('business_name')}")
+        
+        # AGENT 1: Tier & Presence Analysis
+        tier_analysis = analyze_tier_and_presence(lead)
 
-    # AGENT 2: Niche Competitive Intelligence
-    niche_intel = analyze_niche_intelligence(lead)
+        # AGENT 2: Niche Competitive Intelligence
+        niche_intel = analyze_niche_intelligence(lead)
 
-    # AGENT 3: Original Design Synthesis
-    design_synthesis = synthesize_original_design(lead, niche_intel)
+        # AGENT 3: Original Design Synthesis
+        design_synthesis = synthesize_original_design(lead, niche_intel)
 
-    # AGENT 4: Demo Composition
-    demo_composition = compose_demo_structure(lead, tier_analysis, design_synthesis)
+        # AGENT 4: Demo Composition
+        demo_composition = compose_demo_structure(lead, tier_analysis, design_synthesis)
 
-    # Combined output
+    # Combined output (same format for both paths)
     result = {
         "businessName": lead.get("business_name"),
         "processedAt": datetime.now().isoformat(),
+        "routedTo": "renovation" if use_new_architecture else "legacy",
         "marketAwareAnalysis": {
             "agent1_tier_presence": tier_analysis,
             "agent2_competitive_intelligence": niche_intel,

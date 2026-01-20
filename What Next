@@ -1,0 +1,2425 @@
+# Comprehensive Implementation Roadmap: Enterprise Architecture Refactor
+
+Based on the current Renovation Automations repository structure, here's a detailed step-by-step implementation roadmap:
+
+---
+
+## 1. Enterprise Architecture Refactoring
+
+### 1.1 Proposed Folder Structure
+
+```
+Renovation/
+├── api/                    # External API integrations
+│   ├── foursquare/
+│   ├── tomtom/
+│   ├── yelp/
+│   └── vercel/
+├── agents/                 # Agentic AI systems
+│   ├── orchestration/     # Task manager agents
+│   ├── validation/        # Task & output validators
+│   ├── generation/        # Content generators
+│   └── analysis/          # Market analysis agents
+├── domains/               # Business domain logic
+│   ├── lead_management/
+│   ├── demo_creation/
+│   └── client_proposals/
+├── workflows/             # Workflow definitions
+│   ├── lead_scraping/
+│   ├── demo_generation/
+│   └── client_outreach/
+├── core/                  # Shared utilities
+│   ├── database/
+│   ├── logging/
+│   └── exceptions/
+├── infrastructure/        # System infrastructure
+│   ├── secrets/
+│   ├── task_registry/
+│   ├── feature_flags/
+│   └── monitoring/
+└── config/               # Configuration
+    ├── secrets.schema.json
+    ├── feature_flags.json
+    └── production_rules.json
+```
+
+### 1.2 Centralized Secrets Management
+
+**Implementation Steps:**
+
+**Step 1:** Create `config/secrets.schema.json` contract:
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Secrets Configuration Schema",
+  "type": "object",
+  "required": ["apis", "databases", "services"],
+  "properties": {
+    "apis": {
+      "type": "object",
+      "required": ["foursquare"],
+      "properties": {
+        "foursquare": {
+          "type": "object",
+          "required": ["api_key", "rate_limit"],
+          "properties": {
+            "api_key": {"type": "string", "pattern": "^fsq_.*"},
+            "rate_limit": {"type": "integer", "minimum": 1},
+            "endpoint": {"type": "string", "format": "uri"}
+          }
+        }
+      }
+    },
+    "databases": {
+      "type": "object",
+      "properties": {
+        "sqlite": {"type": "object"},
+        "supabase": {"type": "object"}
+      }
+    }
+  }
+}
+```
+
+Current secrets are scattered across multiple locations. The system loads API keys from environment variables in `scraper/config.py` [1](#4-0) , but there's no validation or schema enforcement. The `APIManager` class attempts to centralize API configuration [2](#4-1) , but it's not fully integrated.
+
+**Step 2:** Create `infrastructure/secrets/secrets_manager.py`:
+
+This should:
+- Validate all secrets against `secrets.schema.json` on startup
+- Provide type-safe secret retrieval with fallbacks
+- Support secret rotation without redeployment
+- Integrate with the existing `.env` approach documented in [3](#4-2) 
+
+**Step 3:** Migrate from current config approach:
+
+The current `Config` class uses direct `os.getenv()` calls [4](#4-3) . Replace with schema-validated secret manager that maintains backward compatibility.
+
+### 1.3 Task Registry System
+
+**Architecture:**
+
+Create `infrastructure/task_registry/registry.py` to track:
+- Workflow execution state
+- Prevent duplicate processing
+- Enable idempotent operations
+- Track task dependencies
+
+**Database Schema Addition:**
+
+Extend the existing `businesses.db` schema [5](#4-4)  with:
+
+```sql
+CREATE TABLE IF NOT EXISTS task_registry (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT UNIQUE NOT NULL,
+    workflow_type TEXT NOT NULL,
+    business_fsq_id TEXT,
+    status TEXT DEFAULT 'pending',
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    agent_outputs JSON,
+    retry_count INTEGER DEFAULT 0,
+    error_log TEXT,
+    FOREIGN KEY (business_fsq_id) REFERENCES businesses(fsq_id)
+);
+
+CREATE TABLE IF NOT EXISTS workflow_locks (
+    workflow_type TEXT PRIMARY KEY,
+    locked_by TEXT,
+    locked_at TIMESTAMP,
+    expires_at TIMESTAMP
+);
+```
+
+**Integration Points:**
+
+The current 4-agent pipeline in `run_market_aware_pipeline()` executes sequentially without state tracking [6](#4-5) . The task registry should wrap this to:
+- Check if lead already processed
+- Store intermediate agent outputs
+- Enable resume from failure points
+
+---
+
+## 2. Module Mapping to New Structure
+
+### 2.1 Domain Mapping
+
+**domains/lead_management/**
+- **Move:** `scraper/scraper.py` → `domains/lead_management/scraper.py`
+- **Move:** `scraper/comprehensive_analyzer.py` → `domains/lead_management/analyzer.py`
+- **Move:** `scraper/email_finder.py` → `domains/lead_management/contact_finder.py`
+- **Rationale:** These modules handle lead discovery and qualification business logic [7](#4-6) 
+
+**domains/demo_creation/**
+- **Move:** `scripts/enhanced_template.py` → `domains/demo_creation/template_builder.py`
+- **Move:** `scripts/curated_palettes.py` → `domains/demo_creation/design_system.py`
+- **Rationale:** These handle demo generation business rules [8](#4-7) 
+
+**domains/client_proposals/**
+- **Create new:** Content generation for proposals based on demo results
+- **Source data:** `demo_results.json` structure [9](#4-8) 
+
+### 2.2 Agents Mapping
+
+**agents/analysis/** (From existing 4-agent system)
+- **Extract:** Agent 1 from `market_aware_agent.py` → `agents/analysis/tier_analyzer.py` [10](#4-9) 
+- **Extract:** Agent 2 from `market_aware_agent.py` → `agents/analysis/competitive_intel.py` [11](#4-10) 
+- **Extract:** Agent 3 from `market_aware_agent.py` → `agents/generation/design_synthesizer.py`
+- **Extract:** Agent 4 from `market_aware_agent.py` → `agents/generation/demo_composer.py`
+
+**agents/orchestration/** (New)
+- **Create:** `task_orchestrator.py` - Coordinates multi-agent workflows
+- **Create:** `workflow_scheduler.py` - Manages batch processing
+- **Wrap:** Current pipeline controller [12](#4-11) 
+
+**agents/validation/** (New)
+- **Create:** `task_validator.py` - Verifies completion criteria
+- **Create:** `output_validator.py` - Validates demo quality
+- **Create:** `data_validator.py` - Validates lead data integrity
+
+### 2.3 Core Infrastructure Mapping
+
+**core/database/**
+- **Move:** `scraper/database.py` → `core/database/business_repository.py`
+- **Enhance:** Add repository pattern abstraction over current direct SQL [13](#4-12) 
+- **Add:** Task registry repository
+- **Add:** Workflow state repository
+
+**api/** (External integrations)
+- **Move:** `scraper/api_manager.py` → `api/api_gateway.py`
+- **Create:** `api/foursquare/client.py` - Wrap scraper logic [14](#4-13) 
+- **Create:** `api/vercel/deployment_client.py` - For demo deployment
+
+**workflows/**
+- **Extract:** Lead scraping workflow from `scraper/start_abroad_analysis.py`
+- **Extract:** Demo generation workflow from `scripts/demo_generation.py` [15](#4-14) 
+- **Create:** End-to-end orchestration workflows
+
+---
+
+## 3. Agentic AI System Design
+
+### 3.1 Task Manager Agent
+
+**Architecture:**
+
+```
+agents/orchestration/task_orchestrator.py
+```
+
+**Responsibilities:**
+- Coordinate execution of the 4 existing market analysis agents
+- Manage workflow state in task registry
+- Handle retries and error recovery
+- Distribute load across workers for batch processing
+
+**Integration with existing system:**
+
+Current pipeline processes leads sequentially [16](#4-15) . The task orchestrator should:
+
+1. **Wrap existing workflow:**
+   - Input: Lead from `data/sample_leads.json` format
+   - Execute: `run_market_aware_pipeline()` with registry tracking
+   - Output: Store results in task registry + `demo_results.json`
+
+2. **Prevent duplication:**
+   - Check task_registry before processing
+   - Generate task_id from `hash(fsq_id + workflow_type + timestamp)`
+   - Implement distributed locking for parallel workers
+
+3. **Workflow dependency management:**
+   - Lead scraping → Tier analysis → Demo generation → Client outreach
+   - Store intermediate outputs for each stage
+
+### 3.2 Task Validators
+
+**agents/validation/task_validator.py**
+
+**Validation Rules:**
+
+For **Lead Scraping** workflow:
+- ✅ Business has `fsq_id` (primary key)
+- ✅ Has at least one contact method (phone, email, website)
+- ✅ Geographic coordinates present
+- ✅ Category classification completed
+
+For **4-Agent Demo Generation** workflow:
+- ✅ All 4 agents completed (check `marketAwareAnalysis` object) [17](#4-16) 
+- ✅ Tier assigned (Tier 1-4)
+- ✅ Color palette generated with primary/secondary/accent
+- ✅ HTML file created in `demo_sites/`
+- ✅ File size reasonable (< 50KB for Tier 1-2, < 100KB for Tier 3-4)
+
+**Completion Criteria:**
+
+```python
+def validate_demo_generation_complete(task_id: str) -> bool:
+    """Verify 4-agent pipeline completed successfully"""
+    # Check all required outputs exist
+    # Verify agent outputs match expected schema
+    # Confirm HTML template rendered
+    # Validate design tokens applied
+```
+
+### 3.3 Output Validators
+
+**agents/validation/output_validator.py**
+
+**Demo Quality Metrics:**
+
+Based on the existing tier system [18](#4-17) :
+
+**Tier 1 Validation:**
+- Component count: 6 ± 2
+- Sections: 3 minimum
+- Animation level: minimal or none
+- Load time: < 2s
+- Mobile responsive: required
+
+**Tier 2 Validation:**
+- Component count: 12 ± 3
+- Sections: 6 minimum
+- Animation level: moderate
+- Design originality score: > 60% (not matching competitor patterns)
+
+**Tier 3 Validation:**
+- Component count: 18 ± 4
+- Sections: 8 minimum
+- Animation level: advanced
+- Competitive differentiation: Must avoid anti-patterns from Agent 2 analysis [19](#4-18) 
+
+**HTML Quality Checks:**
+- Valid HTML5 structure
+- Responsive meta tags present
+- No broken links
+- Color contrast WCAG AA compliant
+- Semantic HTML usage
+
+### 3.4 Content Generator Agent
+
+**agents/generation/proposal_generator.py**
+
+**Input Sources:**
+- Agent 1 output: Problems detected [20](#4-19) 
+- Agent 2 output: Market opportunities [19](#4-18) 
+- Agent 3 output: Design strategy [21](#4-20) 
+- Demo URL and visual proof
+
+**Generated Content:**
+1. **Executive Summary:**
+   - "Your current website has [X problems from Agent 1]"
+   - "Competitors are winning with [Y opportunities from Agent 2]"
+   - "Our solution: [Z unique value from Agent 3]"
+
+2. **Technical Proposal:**
+   - Site architecture based on tier
+   - Feature list based on component count [22](#4-21) 
+   - Timeline estimate
+   - Pricing based on tier [23](#4-22) 
+
+3. **Visual Mockup:**
+   - Link to generated demo HTML
+   - Before/after comparison
+   - Competitive analysis visualization
+
+### 3.5 Task Registry Integration
+
+**Deduplication Strategy:**
+
+```python
+# Before executing workflow
+task_id = f"{workflow_type}:{fsq_id}:{datetime.now().date()}"
+
+if task_registry.exists(task_id):
+    if task_registry.is_completed(task_id):
+        return task_registry.get_cached_result(task_id)
+    elif task_registry.is_in_progress(task_id):
+        if task_registry.age() > MAX_TASK_DURATION:
+            task_registry.mark_as_failed(task_id)
+            # Retry
+        else:
+            return {"status": "in_progress"}
+```
+
+**State Machine:**
+
+```
+pending → in_progress → completed
+                     ↓
+                  failed → retrying → completed
+```
+
+---
+
+## 4. Implementation Sequence & Dependencies
+
+### Phase 1: Foundation (Week 1-2) - **NON-BREAKING**
+
+**Priority 1.1: Infrastructure Setup (Can run in parallel)**
+
+✅ **Task A:** Create folder structure
+- No code changes, just directories
+- **Dependency:** None
+- **Risk:** Zero
+
+✅ **Task B:** Implement secrets manager
+- Create `infrastructure/secrets/` with schema validation
+- **Dependency:** None
+- **Risk:** Low (doesn't touch existing code)
+- **Parallel:** Can build alongside Task A
+
+✅ **Task C:** Create task registry database schema
+- Extend `businesses.db` with new tables [24](#4-23) 
+- **Dependency:** None (additive schema change)
+- **Risk:** Zero (doesn't modify existing tables)
+- **Parallel:** Can build with Tasks A & B
+
+**Priority 1.2: Core Abstractions**
+
+✅ **Task D:** Build repository pattern for database
+- Wrap existing `BusinessDatabase` class [25](#4-24) 
+- **Dependency:** Task C complete
+- **Risk:** Low (wrapper, not replacement)
+
+✅ **Task E:** Create base agent interface
+- Abstract class for all agents
+- **Dependency:** None
+- **Risk:** Zero
+- **Parallel:** Can build with Task D
+
+### Phase 2: Agent Extraction (Week 3-4) - **MAINTAIN COMPATIBILITY**
+
+**Priority 2.1: Extract Analysis Agents**
+
+✅ **Task F:** Extract Agent 1 (Tier Analyzer)
+- Copy `analyze_tier_and_presence()` to `agents/analysis/tier_analyzer.py` [10](#4-9) 
+- Create wrapper that calls original for backward compatibility
+- **Dependency:** Task E complete
+- **Risk:** Low (copy, not move)
+
+✅ **Task G:** Extract Agent 2 (Competitive Intelligence)
+- Copy `analyze_niche_intelligence()` to `agents/analysis/competitive_intel.py` [11](#4-10) 
+- **Dependency:** Task F complete (same pattern)
+- **Risk:** Low
+
+✅ **Task H:** Extract Agents 3 & 4
+- Same pattern as F & G
+- **Dependency:** Tasks F, G complete
+- **Risk:** Low
+- **Parallel:** Can extract both simultaneously
+
+**Priority 2.2: Validation Agents (New functionality)**
+
+✅ **Task I:** Build task validator
+- Create `agents/validation/task_validator.py`
+- Integrate with task registry
+- **Dependency:** Task D complete
+- **Risk:** Low (additive)
+- **Parallel:** Can build while extracting analysis agents
+
+✅ **Task J:** Build output validator
+- Create quality checks for demo output
+- **Dependency:** Task I complete (shared validation framework)
+- **Risk:** Low
+
+### Phase 3: Orchestration Layer (Week 5-6) - **CRITICAL PATH**
+
+**Priority 3.1: Task Orchestrator**
+
+⚠️ **Task K:** Build task orchestrator agent
+- Wrap `run_market_aware_pipeline()` [6](#4-5) 
+- Add task registry checks
+- **Dependency:** Tasks D, F, G, H, I complete
+- **Risk:** MEDIUM (modifies execution flow)
+- **Testing:** Run against existing test data [16](#4-15) 
+
+**Priority 3.2: Workflow Definitions**
+
+✅ **Task L:** Define workflow schemas
+- Lead scraping workflow
+- Demo generation workflow
+- Client proposal workflow
+- **Dependency:** Task K complete
+- **Risk:** Low
+- **Parallel:** Can define while testing Task K
+
+### Phase 4: Migration (Week 7-8) - **CAREFUL CUTOVER**
+
+**Priority 4.1: Gradual Migration**
+
+⚠️ **Task M:** Update lead scraping to use new structure
+- Modify `scraper/start_abroad_analysis.py` to call orchestrator
+- Keep old path as fallback
+- **Dependency:** Task K tested and stable
+- **Risk:** MEDIUM
+- **Rollback Plan:** Feature flag to use old vs. new path
+
+⚠️ **Task N:** Update demo generation to use new structure
+- Modify `scripts/demo_generation.py` [12](#4-11) 
+- Keep old path as fallback
+- **Dependency:** Task M complete
+- **Risk:** MEDIUM
+- **Rollback Plan:** Feature flag
+
+**Priority 4.2: Production Deployment**
+
+🔴 **Task O:** Deploy to production with feature flags
+- Enable new architecture for 10% of traffic
+- Monitor metrics
+- **Dependency:** Tasks M, N complete and tested
+- **Risk:** HIGH
+- **Monitoring:** Track processing time, success rate, error rate
+
+### Phase 5: Enhancement (Week 9-10) - **OPTIONAL IMPROVEMENTS**
+
+✅ **Task P:** Build proposal generator agent
+- New functionality, doesn't affect existing system
+- **Dependency:** Task N complete
+- **Risk:** Low
+
+✅ **Task Q:** Add advanced monitoring
+- Performance metrics
+- Agent execution traces
+- **Dependency:** None
+- **Risk:** Low
+- **Parallel:** Can build anytime
+
+### Parallel Execution Matrix
+
+```
+Week 1-2:  [A] [B] [C]
+            ↓   ↓   ↓
+           [D] [E] 
+
+Week 3-4:  [F] [G] [H]
+           [I] [J]
+
+Week 5-6:  [K] [L]
+
+Week 7-8:  [M] → [N]
+
+Week 9-10: [O] → [P] [Q]
+```
+
+**Backward Compatibility Strategy:**
+
+Every change maintains dual code paths:
+```python
+if feature_flags.use_new_architecture:
+    result = orchestrator.run_workflow(lead)
+else:
+    result = legacy_run_market_aware_pipeline(lead)  # Original code
+```
+
+This ensures the production-ready scraper and demo generation continue operating [26](#4-25) [27](#4-26)  while new architecture is validated.
+
+---
+
+## 5. Security Hardening Measures
+
+### 5.1 Kill Switches
+
+**Implementation: `infrastructure/monitoring/kill_switch.py`**
+
+**Trigger Conditions:**
+
+1. **API Rate Limit Exhaustion:**
+   - Current system tracks `used_today` in `APIManager` [28](#4-27) 
+   - **Kill switch:** When `used_today >= rate_limit * 0.95`, halt all scraping workflows
+   - **Action:** Send alert, pause for 24h, resume automatically
+
+2. **Database Connection Failures:**
+   - Monitor SQLite connection health [29](#4-28) 
+   - **Kill switch:** After 3 consecutive connection failures
+   - **Action:** Stop all workflows, alert ops team
+
+3. **Demo Generation Failure Rate:**
+   - Track success rate from `demo_results.json` [30](#4-29) 
+   - **Kill switch:** If failure rate > 20% in rolling 1-hour window
+   - **Action:** Halt demo generation, investigate Agent outputs
+
+4. **Cost Threshold:**
+   - Monitor API call costs (Foursquare, Vercel, etc.)
+   - **Kill switch:** Daily cost > configured budget
+   - **Action:** Pause workflows until manual approval
+
+**Database Schema:**
+
+```sql
+CREATE TABLE IF NOT EXISTS kill_switches (
+    id INTEGER PRIMARY KEY,
+    switch_name TEXT UNIQUE,
+    is_active BOOLEAN DEFAULT FALSE,
+    triggered_at TIMESTAMP,
+    trigger_reason TEXT,
+    auto_resume_at TIMESTAMP
+);
+```
+
+### 5.2 Feature Flags
+
+**Implementation: `config/feature_flags.json`**
+
+```json
+{
+  "features": {
+    "use_new_architecture": {
+      "enabled": false,
+      "rollout_percentage": 10,
+      "enabled_for": ["tier_1_leads"],
+      "description": "Use new orchestration layer vs. legacy pipeline"
+    },
+    "enable_task_registry": {
+      "enabled": true,
+      "description": "Prevent duplicate workflow execution"
+    },
+    "enable_output_validation": {
+      "enabled": true,
+      "rollout_percentage": 100,
+      "description": "Validate demo quality before marking complete"
+    },
+    "enable_proposal_generation": {
+      "enabled": false,
+      "description": "Auto-generate client proposals"
+    },
+    "enable_parallel_scraping": {
+      "enabled": false,
+      "max_workers": 3,
+      "description": "Process multiple cities simultaneously"
+    }
+  }
+}
+```
+
+**Flag Manager: `infrastructure/feature_flags/flag_manager.py`**
+
+```python
+class FeatureFlagManager:
+    def is_enabled(self, feature_name: str, context: Dict = None) -> bool:
+        """Check if feature enabled with percentage rollout"""
+        # Load from config/feature_flags.json
+        # Support gradual rollout by tier, geography, etc.
+        
+    def enable_for_percentage(self, feature: str, percentage: int):
+        """Gradual rollout (10% → 50% → 100%)"""
+```
+
+**Integration Points:**
+
+1. **Architecture Switch:**
+   ```python
+   if flags.is_enabled('use_new_architecture', {'tier': lead['tier']}):
+       orchestrator.run_workflow(lead)
+   else:
+       legacy_pipeline(lead)  # Current working code
+   ```
+
+2. **Validation Layer:**
+   ```python
+   if flags.is_enabled('enable_output_validation'):
+       output_validator.validate(demo_result)
+   ```
+
+### 5.3 Production Fatigue Rules
+
+**Implementation: `infrastructure/monitoring/fatigue_rules.py`**
+
+**Problem:** 
+The current system can process 595 businesses rapidly [31](#4-30) , but scaling to thousands could overwhelm infrastructure or violate rate limits.
+
+**Fatigue Rules:**
+
+**Rule 1: API Request Throttling**
+- **Current:** No throttling beyond rate limits [32](#4-31) 
+- **New:** Implement token bucket algorithm
+  - Foursquare: 95,000/day → 66 requests/minute max
+  - Add exponential backoff on 429 responses
+  - Distribute load across 24 hours, not bursty
+
+**Rule 2: Database Write Batching**
+- **Current:** Individual writes per business [33](#4-32) 
+- **New:** Batch writes every 50 businesses or 30 seconds
+  - Reduces I/O pressure
+  - Improves transaction efficiency
+
+**Rule 3: Worker Pool Limits**
+- **Current:** Sequential processing [30](#4-29) 
+- **New:** Max 5 concurrent workers for demo generation
+  - Each worker handles 1 lead at a time
+  - Queue-based work distribution
+  - Prevents CPU/memory exhaustion
+
+**Rule 4: Cooling Periods**
+- After processing 1,000 leads, mandatory 5-minute cooldown
+- Allows database to compact, caches to clear
+- Prevents sustained high load
+
+**Rule 5: Time-Based Restrictions**
+```json
+{
+  "allowed_hours": {
+    "scraping": "00:00-23:59",
+    "demo_generation": "06:00-22:00",
+    "client_outreach": "09:00-17:00"
+  },
+  "quiet_hours": {
+    "no_heavy_processing": "01:00-05:00"
+  }
+}
+```
+
+**Database Schema:**
+
+```sql
+CREATE TABLE IF NOT EXISTS fatigue_metrics (
+    id INTEGER PRIMARY KEY,
+    metric_type TEXT,
+    current_value INTEGER,
+    threshold INTEGER,
+    last_reset TIMESTAMP,
+    is_throttled BOOLEAN DEFAULT FALSE
+);
+```
+
+**Monitoring Integration:**
+
+```python
+class FatigueMonitor:
+    def check_api_fatigue(self, api_name: str) -> bool:
+        """Return True if should throttle"""
+        requests_last_minute = self.get_recent_requests(api_name, window=60)
+        if requests_last_minute > self.get_threshold(api_name):
+            return True
+        return False
+    
+    def check_database_fatigue(self) -> bool:
+        """Return True if should batch writes"""
+        pending_writes = self.get_pending_write_count()
+        if pending_writes > 50:
+            return True
+        return False
+```
+
+### 5.4 Graceful Degradation
+
+**Strategy:**
+
+When fatigue rules trigger or kill switches activate:
+
+1. **Continue with reduced functionality:**
+   - Scraping paused → Demo generation continues with existing leads
+   - Demo generation paused → Proposal generation continues with existing demos
+   - All systems paused → Read-only mode, serve cached results
+
+2. **Priority Queue:**
+   - Tier 1 leads processed first (highest value) [34](#4-33) 
+   - During throttling, only process top 20% by lead score [35](#4-34) 
+
+3. **Automatic Recovery:**
+   - Kill switches auto-resume when condition clears
+   - Fatigue rules exponentially back off, then ramp up
+   - Feature flags enable/disable automatically based on system health
+
+### 5.5 Audit Logging
+
+**Implementation: `infrastructure/monitoring/audit_logger.py`**
+
+**Logged Events:**
+
+1. **Workflow Execution:**
+   - Task ID, workflow type, start/end time
+   - Agent outputs and decisions
+   - Success/failure status
+
+2. **Security Events:**
+   - Kill switch activations
+   - Feature flag changes
+   - Secret access (which service, when)
+   - API key rotations
+
+3. **Performance Metrics:**
+   - Processing time per lead [16](#4-15) 
+   - Agent execution times
+   - Database query performance
+
+**Storage:**
+
+```sql
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    event_type TEXT,
+    event_data JSON,
+    user_context JSON,
+    severity TEXT
+);
+```
+
+---
+
+## Implementation Success Metrics
+
+**Week 1-2 (Foundation):**
+- ✅ All folders created
+- ✅ Secrets schema validates existing `.env`
+- ✅ Task registry tables created
+- ✅ No disruption to production scraper
+
+**Week 3-4 (Agents):**
+- ✅ All 4 agents extracted and callable independently
+- ✅ Validators built and tested
+- ✅ Legacy pipeline still produces identical results [27](#4-26) 
+
+**Week 5-6 (Orchestration):**
+- ✅ Task orchestrator processes test leads successfully
+- ✅ Task registry prevents duplicate execution
+- ✅ Performance: 1.5s per lead maintained [36](#4-35) 
+
+**Week 7-8 (Migration):**
+- ✅ 10% of traffic on new architecture
+- ✅ 100% success rate maintained
+- ✅ Zero production incidents
+
+**Week 9-10 (Enhancement):**
+- ✅ Proposal generator creates client-ready content
+- ✅ All kill switches tested
+- ✅ Feature flags enable gradual rollout
+
+---
+
+## Notes
+
+### Critical Considerations:
+
+1. **Zero Downtime Requirement:** The production scraper has already processed 595 businesses [31](#4-30)  and the 4-agent demo system is production-ready [27](#4-26) . Any refactoring **must maintain 100% backward compatibility** via feature flags.
+
+2. **Task Registry Purpose:** The current system has no mechanism to prevent re-processing the same lead. The `businesses` table tracks scraping [37](#4-36) , but not workflow execution state. The task registry solves this by tracking: "Has this lead been analyzed? Has a demo been generated? Has a proposal been sent?"
+
+3. **Agent Independence:** The 4 existing agents are tightly coupled in `run_market_aware_pipeline()` [6](#4-5) . Extraction to separate modules enables: (a) independent testing, (b) parallel execution where possible, (c) easier replacement/upgrade of individual agents.
+
+4. **Security Layering:** Current security is minimal (`.env` file only) [38](#4-37) . Enterprise architecture requires: schema validation, rotation support, access auditing, and runtime protection (kill switches, fatigue rules).
+
+5. **Gradual Migration Strategy:** Use feature flags to route 10% → 50% → 100% of traffic to new architecture over 4 weeks. This allows real-world validation while maintaining the working system as fallback.
+
+6. **Monitoring Imperative:** Without kill switches and fatigue rules, scaling from 595 to 10,000+ leads could exhaust API quotas, overwhelm the database, or create cost overruns. These protections are not optional for enterprise deployment.
+
+This roadmap prioritizes **incremental, non-breaking changes** while building toward a robust enterprise architecture that maintains the current production systems' reliability and performance.
+
+### Citations
+
+**File:** scraper/config.py (L1-61)
+```python
+# config.py
+import os
+from dataclasses import dataclass
+from typing import List, Dict
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+@dataclass
+class Config:
+    # Foursquare API
+    FOURSQUARE_API_KEY = os.getenv("FOURSQUARE_API_KEY", "")
+    FOURSQUARE_API_URL = "https://api.foursquare.com/v3/places/search"
+    
+    # Database
+    DATABASE_PATH = "businesses.db"
+    
+    # Categories to search (global)
+    CATEGORIES = [
+        "13003",  # Coffee Shop
+        "13026",  # Restaurant
+        "13035",  # Doctor
+        "13038",  # Lawyer
+        "13040",  # Dentist
+        "13041",  # Real Estate Agent
+        "13044",  # Accountant
+        "10027",  # Spa
+        "10032",  # Gym
+        "17014",  # Auto Repair
+        "17043",  # Plumber
+        "17069",  # Electrician
+    ]
+    
+    # Popular global cities for initial setup
+    CITIES = [
+        {"name": "London, UK", "lat": 51.5074, "lng": -0.1278},
+        {"name": "New York, USA", "lat": 40.7128, "lng": -74.0060},
+        {"name": "Tokyo, Japan", "lat": 35.6762, "lng": 139.6503},
+        {"name": "Sydney, Australia", "lat": -33.8688, "lng": 151.2093},
+        {"name": "Toronto, Canada", "lat": 43.6532, "lng": -79.3832},
+        {"name": "Berlin, Germany", "lat": 52.5200, "lng": 13.4050},
+        {"name": "Paris, France", "lat": 48.8566, "lng": 2.3522},
+        {"name": "Singapore", "lat": 1.3521, "lng": 103.8198},
+        {"name": "Dubai, UAE", "lat": 25.2048, "lng": 55.2708},
+        {"name": "Mumbai, India", "lat": 19.0760, "lng": 72.8777},
+    ]
+    
+    # Website analysis settings
+    ANALYSIS_SETTINGS = {
+        "timeout": 10,
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "check_ssl": True,
+        "check_mobile": True,
+        "check_performance": True,
+    }
+    
+    # Email finder (using Hunter.io - you'll need to sign up)
+    HUNTER_API_KEY = os.getenv("HUNTER_API_KEY", "")  # Get from hunter.io
+    CLEARBIT_API_KEY = os.getenv("CLEARBIT_API_KEY", "")  # Optional: for company enrichment
+    
+```
+
+**File:** scraper/config.py (L69-184)
+```python
+class APIManager:
+    """Manage multiple API configurations"""
+    
+    def __init__(self):
+        self.api_configs = {
+            "foursquare": {
+                "name": "Foursquare",
+                "api_key": os.getenv("FOURSQUARE_API_KEY", ""),
+                "base_url": "https://api.foursquare.com/v3/",
+                "status": "active",  # active, inactive, testing
+                "rate_limit": 95000,  # daily limit
+                "used_today": 0,
+                "last_used": None,
+                "categories": {
+                    "13003": "Coffee Shop",
+                    "13026": "Restaurant",
+                    "13035": "Doctor",
+                    "13038": "Lawyer",
+                    "13040": "Dentist",
+                    "13041": "Real Estate",
+                    "13044": "Accountant"
+                }
+            },
+            "yelp": {
+                "name": "Yelp Fusion",
+                "api_key": "",
+                "base_url": "https://api.yelp.com/v3/",
+                "status": "inactive",
+                "rate_limit": 500,
+                "used_today": 0,
+                "last_used": None
+            },
+            "google_places": {
+                "name": "Google Places",
+                "api_key": "",
+                "base_url": "https://maps.googleapis.com/maps/api/place/",
+                "status": "inactive",
+                "rate_limit": 1000,
+                "used_today": 0,
+                "last_used": None
+            },
+            "tomtom": {
+                "name": "TomTom Places",
+                "api_key": "",
+                "base_url": "https://api.tomtom.com/search/2/",
+                "status": "inactive",
+                "rate_limit": 2500,
+                "used_today": 0,
+                "last_used": None
+            }
+        }
+        
+        self.active_apis = ["foursquare"]  # Which APIs are currently active
+        
+        # Alternative APIs for business data
+        self.alternative_apis = {
+            "hunter": {
+                "name": "Hunter.io",
+                "purpose": "Email finding",
+                "url": "https://hunter.io",
+                "cost": "$49-$499/month",
+                "coverage": "200M+ emails"
+            },
+            "clearbit": {
+                "name": "Clearbit",
+                "purpose": "Company enrichment",
+                "url": "https://clearbit.com",
+                "cost": "$99-$999/month",
+                "coverage": "50M+ companies"
+            },
+            "builtwith": {
+                "name": "BuiltWith",
+                "purpose": "Tech stack analysis",
+                "url": "https://builtwith.com",
+                "cost": "$295-$1995/month",
+                "coverage": "1B+ websites"
+            },
+            "apollo": {
+                "name": "Apollo.io",
+                "purpose": "B2B database",
+                "url": "https://apollo.io",
+                "cost": "$99-$1500/month",
+                "coverage": "265M+ contacts"
+            },
+            "zoominfo": {
+                "name": "ZoomInfo",
+                "purpose": "Enterprise B2B",
+                "url": "https://zoominfo.com",
+                "cost": "$15,000+/year",
+                "coverage": "100M+ companies"
+            }
+        }
+    
+    def get_active_api(self, service="foursquare"):
+        """Get API configuration for a service"""
+        return self.api_configs.get(service)
+    
+    def update_api_key(self, service, api_key):
+        """Update API key for a service"""
+        if service in self.api_configs:
+            self.api_configs[service]["api_key"] = api_key
+            self.api_configs[service]["status"] = "active"
+            if service not in self.active_apis:
+                self.active_apis.append(service)
+            return True
+        return False
+    
+    def test_api(self, service):
+        """Test if API is working"""
+        api_config = self.get_active_api(service)
+        if not api_config:
+            return False, "API not configured"
+        
+        # This would be implemented in the actual test
+        return True, "Test not implemented for this API"
+
+```
+
+**File:** docs/SECURITY_SETUP.md (L3-8)
+```markdown
+## ✅ CONFIRMED: Database is Working
+- **Total businesses**: 595 entries
+- **Date range**: Jan 19, 2026 (12:20 → 15:28)
+- **Countries**: Kenya (247), USA (100), UK (50), France (48), Germany/Deutschland (50), Nigeria (50), Ghana (50)
+- **Tier distribution**: Properly categorized (Tier 1-4)
+- **Data storage**: SQLite database (`businesses.db`)
+```
+
+**File:** docs/SECURITY_SETUP.md (L10-29)
+```markdown
+## 🔒 SECURITY STATUS: KEYS NOW PROTECTED
+
+### Before GitHub Push - Keys Secured:
+1. ✅ Created `.gitignore` - excludes sensitive files
+2. ✅ Created `.env.example` - template for API keys
+3. ✅ Updated `config.py` - uses environment variables
+4. ✅ Updated `api_manager.py` - loads from env
+5. ✅ Updated `quick_start.py` - no hardcoded keys
+6. ✅ Cleared `api_configs.json` - all keys removed
+7. ✅ Database excluded from Git (`.gitignore`)
+8. ✅ CSV exports excluded from Git (`.gitignore`)
+
+### Files Protected by .gitignore:
+- `*.db` - Your database with client data
+- `*.csv`, `*.xlsx` - Export files with business info
+- `api_configs.json` - API configuration
+- `.env` - Your actual API keys
+- `__pycache__/`, `venv/` - Python artifacts
+- `*.log` - Log files
+
+```
+
+**File:** docs/SECURITY_SETUP.md (L30-57)
+```markdown
+### Setup Instructions for New Environments:
+
+1. **Clone the repo**:
+   ```bash
+   git clone https://github.com/middlechild0/your-repo-name.git
+   cd your-repo-name
+   ```
+
+2. **Create `.env` file**:
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Add your API keys to `.env`**:
+   ```
+   FOURSQUARE_API_KEY=your_actual_key_here
+   TOMTOM_API_KEY=your_tomtom_key_here
+   ```
+
+4. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+5. **Run the scraper**:
+   ```bash
+   python3 start_abroad_analysis.py
+   ```
+```
+
+**File:** scraper/database.py (L8-450)
+```python
+class BusinessDatabase:
+    def __init__(self, db_path: str = "businesses.db"):
+        self.db_path = db_path
+        self.init_database()
+    
+    def init_database(self):
+        """Initialize database with all required tables"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Businesses table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS businesses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fsq_id TEXT UNIQUE,
+            name TEXT NOT NULL,
+            address TEXT,
+            locality TEXT,
+            region TEXT,
+            postcode TEXT,
+            country TEXT,
+            latitude REAL,
+            longitude REAL,
+            phone TEXT,
+            email TEXT,
+            website TEXT,
+            category TEXT,
+            category_id TEXT,
+            
+            -- Website Analysis Fields (Legacy)
+            website_score INTEGER DEFAULT 0,
+            mobile_friendly BOOLEAN DEFAULT FALSE,
+            has_ssl BOOLEAN DEFAULT FALSE,
+            load_time REAL DEFAULT 0,
+            tech_stack TEXT DEFAULT '[]',
+            issues TEXT DEFAULT '[]',
+            last_analyzed TIMESTAMP,
+            
+            -- Comprehensive Analysis Fields (New)
+            comprehensive_analysis TEXT DEFAULT '{}',
+            has_website BOOLEAN,
+            website_status TEXT,
+            tier INTEGER DEFAULT 4,
+            tier_assignment TEXT,
+            critical_failures_count INTEGER DEFAULT 0,
+            critical_issues_count INTEGER DEFAULT 0,
+            high_priority_issues_count INTEGER DEFAULT 0,
+            medium_priority_issues_count INTEGER DEFAULT 0,
+            low_priority_issues_count INTEGER DEFAULT 0,
+            comprehensive_score INTEGER DEFAULT 0,
+            
+            -- Lead Scoring
+            lead_score INTEGER DEFAULT 0,
+            priority TEXT DEFAULT 'low',
+            needs_redesign BOOLEAN DEFAULT FALSE,
+            has_contact_form BOOLEAN DEFAULT FALSE,
+            
+            -- Status Tracking
+            is_active BOOLEAN DEFAULT TRUE,
+            is_contacted BOOLEAN DEFAULT FALSE,
+            contact_date TIMESTAMP,
+            
+            -- Metadata
+            source TEXT DEFAULT 'foursquare',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        # Categories table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fsq_category_id TEXT UNIQUE,
+            name TEXT NOT NULL,
+            parent_category TEXT,
+            icon_prefix TEXT,
+            icon_suffix TEXT
+        )
+        ''')
+        
+        # Locations table (for tracking scraped areas)
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS locations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            location_hash TEXT UNIQUE,
+            city TEXT NOT NULL,
+            country TEXT,
+            latitude REAL,
+            longitude REAL,
+            radius INTEGER DEFAULT 5000,
+            total_businesses INTEGER DEFAULT 0,
+            last_scraped TIMESTAMP,
+            next_scrape TIMESTAMP,
+            is_completed BOOLEAN DEFAULT FALSE
+        )
+        ''')
+        
+        # Scraping jobs table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS scraping_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            location_hash TEXT,
+            category_id TEXT,
+            status TEXT DEFAULT 'pending',
+            businesses_found INTEGER DEFAULT 0,
+            started_at TIMESTAMP,
+            completed_at TIMESTAMP,
+            error_message TEXT
+        )
+        ''')
+        
+        # Create indices
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_businesses_fsq_id ON businesses(fsq_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_businesses_website_score ON businesses(website_score)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_businesses_tier ON businesses(tier)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_businesses_category ON businesses(category)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_businesses_location ON businesses(latitude, longitude)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_locations_hash ON locations(location_hash)')
+        
+        conn.commit()
+        conn.close()
+    
+    def add_business(self, business_data: Dict) -> bool:
+        """Add or update a business in the database"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Check if business already exists
+            cursor.execute('SELECT id FROM businesses WHERE fsq_id = ?', (business_data.get('fsq_id'),))
+            existing = cursor.fetchone()
+            
+            if existing:
+                # Update existing business
+                query = '''
+                UPDATE businesses SET 
+                    name = ?, address = ?, locality = ?, region = ?, 
+                    postcode = ?, country = ?, latitude = ?, longitude = ?,
+                    phone = ?, email = ?, website = ?, category = ?,
+                    category_id = ?, updated_at = CURRENT_TIMESTAMP,
+                    last_checked = CURRENT_TIMESTAMP
+                WHERE fsq_id = ?
+                '''
+                params = (
+                    business_data.get('name'),
+                    business_data.get('address'),
+                    business_data.get('locality'),
+                    business_data.get('region'),
+                    business_data.get('postcode'),
+                    business_data.get('country'),
+                    business_data.get('latitude'),
+                    business_data.get('longitude'),
+                    business_data.get('phone'),
+                    business_data.get('email'),
+                    business_data.get('website'),
+                    business_data.get('category'),
+                    business_data.get('category_id'),
+                    business_data.get('fsq_id')
+                )
+                cursor.execute(query, params)
+            else:
+                # Insert new business
+                query = '''
+                INSERT INTO businesses (
+                    fsq_id, name, address, locality, region, postcode,
+                    country, latitude, longitude, phone, email, website,
+                    category, category_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                '''
+                params = (
+                    business_data.get('fsq_id'),
+                    business_data.get('name'),
+                    business_data.get('address'),
+                    business_data.get('locality'),
+                    business_data.get('region'),
+                    business_data.get('postcode'),
+                    business_data.get('country'),
+                    business_data.get('latitude'),
+                    business_data.get('longitude'),
+                    business_data.get('phone'),
+                    business_data.get('email'),
+                    business_data.get('website'),
+                    business_data.get('category'),
+                    business_data.get('category_id')
+                )
+                cursor.execute(query, params)
+            
+            conn.commit()
+            conn.close()
+            return True
+            
+        except Exception as e:
+            print(f"Error adding business: {e}")
+            return False
+    
+    def update_comprehensive_analysis(self, fsq_id: str, analysis: Dict):
+        """Update business with comprehensive website analysis results"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Calculate lead score from comprehensive analysis
+            lead_score = self._calculate_lead_score_from_comprehensive(analysis)
+            
+            # Extract tier from analysis
+            tier = self._tier_to_number(analysis.get('tier', 'TIER_4'))
+            
+            query = '''
+            UPDATE businesses SET
+                comprehensive_analysis = ?,
+                has_website = ?,
+                website_status = ?,
+                tier = ?,
+                tier_assignment = ?,
+                critical_failures_count = ?,
+                critical_issues_count = ?,
+                high_priority_issues_count = ?,
+                medium_priority_issues_count = ?,
+                low_priority_issues_count = ?,
+                comprehensive_score = ?,
+                lead_score = ?,
+                priority = ?,
+                last_analyzed = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE fsq_id = ?
+            '''
+            
+            params = (
+                json.dumps(analysis),
+                analysis.get('has_website', False),
+                analysis.get('website_status', 'unknown'),
+                tier,
+                analysis.get('tier', 'TIER_4'),
+                len(analysis.get('critical_failures', [])),
+                len(analysis.get('critical_issues', [])),
+                len(analysis.get('high_priority_issues', [])),
+                len(analysis.get('medium_priority_issues', [])),
+                len(analysis.get('low_priority_issues', [])),
+                analysis.get('total_score', 0),
+                lead_score,
+                self._tier_to_priority(tier),
+                fsq_id
+            )
+            
+            cursor.execute(query, params)
+            conn.commit()
+            conn.close()
+            
+        except Exception as e:
+            print(f"Error updating comprehensive analysis: {e}")
+    
+    def update_website_analysis(self, fsq_id: str, analysis: Dict):
+        """Update business with website analysis results (legacy)"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Calculate lead score based on analysis
+            lead_score = self._calculate_lead_score(analysis)
+            
+            query = '''
+            UPDATE businesses SET
+                website_score = ?,
+                mobile_friendly = ?,
+                has_ssl = ?,
+                load_time = ?,
+                tech_stack = ?,
+                issues = ?,
+                lead_score = ?,
+                priority = ?,
+                needs_redesign = ?,
+                has_contact_form = ?,
+                last_analyzed = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE fsq_id = ?
+            '''
+            
+            params = (
+                analysis.get('score', 0),
+                analysis.get('mobile_friendly', False),
+                analysis.get('has_ssl', False),
+                analysis.get('load_time', 0),
+                json.dumps(analysis.get('tech_stack', [])),
+                json.dumps(analysis.get('issues', [])),
+                lead_score,
+                'high' if lead_score > 70 else 'medium' if lead_score > 40 else 'low',
+                analysis.get('needs_redesign', False),
+                analysis.get('has_contact_form', False),
+                fsq_id
+            )
+            
+            cursor.execute(query, params)
+            conn.commit()
+            conn.close()
+            
+        except Exception as e:
+            print(f"Error updating analysis: {e}")
+    
+    def _tier_to_number(self, tier_str: str) -> int:
+        """Convert tier string to number"""
+        tier_map = {
+            'TIER_1': 1,
+            'TIER_2': 2,
+            'TIER_3': 3,
+            'TIER_4': 4,
+            'UNKNOWN': 0
+        }
+        return tier_map.get(tier_str, 4)
+    
+    def _tier_to_priority(self, tier_num: int) -> str:
+        """Convert tier number to priority"""
+        tier_map = {
+            1: 'high',
+            2: 'high',
+            3: 'medium',
+            4: 'low',
+            0: 'low'
+        }
+        return tier_map.get(tier_num, 'low')
+    
+    def _calculate_lead_score_from_comprehensive(self, analysis: Dict) -> int:
+        """Calculate lead score from comprehensive analysis"""
+        score = 100
+        
+        # Reduce score based on issues
+        score -= len(analysis.get('critical_failures', [])) * 50
+        score -= len(analysis.get('critical_issues', [])) * 10
+        score -= len(analysis.get('high_priority_issues', [])) * 5
+        score -= len(analysis.get('medium_priority_issues', [])) * 3
+        score -= len(analysis.get('low_priority_issues', [])) * 1
+        
+        return max(0, min(score, 100))
+    
+    def _calculate_lead_score(self, analysis: Dict) -> int:
+        """Calculate lead score based on website issues"""
+        score = 0
+        
+        # High priority issues (add more points)
+        if not analysis.get('has_ssl', False):
+            score += 30
+        if not analysis.get('mobile_friendly', False):
+            score += 25
+        if analysis.get('load_time', 0) > 5:  # > 5 seconds
+            score += 20
+        if analysis.get('needs_redesign', False):
+            score += 15
+        if not analysis.get('has_contact_form', False):
+            score += 10
+            
+        # Tech stack issues
+        outdated_tech = analysis.get('outdated_tech', [])
+        score += min(len(outdated_tech) * 5, 20)
+        
+        return min(score, 100)
+    
+    def get_businesses_by_tier(self, tier: int = 1, limit: int = 100) -> List[Dict]:
+        """Get businesses by tier"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+        SELECT * FROM businesses 
+        WHERE tier = ? 
+        AND is_active = TRUE 
+        AND is_contacted = FALSE
+        ORDER BY lead_score DESC 
+        LIMIT ?
+        ''', (tier, limit))
+        
+        results = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return results
+    
+    def get_businesses_by_score(self, min_score: int = 50, limit: int = 100) -> List[Dict]:
+        """Get businesses with website score above threshold"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+        SELECT * FROM businesses 
+        WHERE website_score >= ? 
+        AND is_active = TRUE 
+        AND is_contacted = FALSE
+        ORDER BY website_score DESC 
+        LIMIT ?
+        ''', (min_score, limit))
+        
+        results = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return results
+    
+    def get_statistics(self) -> Dict:
+        """Get database statistics"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        stats = {}
+        
+        # Total businesses
+        cursor.execute('SELECT COUNT(*) FROM businesses')
+        stats['total_businesses'] = cursor.fetchone()[0]
+        
+        # Businesses with websites
+        cursor.execute('SELECT COUNT(*) FROM businesses WHERE website IS NOT NULL AND website != ""')
+        stats['with_websites'] = cursor.fetchone()[0]
+        
+        # Analyzed websites
+        cursor.execute('SELECT COUNT(*) FROM businesses WHERE last_analyzed IS NOT NULL')
+        stats['analyzed'] = cursor.fetchone()[0]
+        
+        # Comprehensive analysis done
+        cursor.execute('SELECT COUNT(*) FROM businesses WHERE comprehensive_analysis != \'{}\'')
+        stats['comprehensively_analyzed'] = cursor.fetchone()[0]
+        
+        # Tier distribution
+        cursor.execute('SELECT COUNT(*) FROM businesses WHERE tier = 1')
+        stats['tier_1_count'] = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM businesses WHERE tier = 2')
+        stats['tier_2_count'] = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM businesses WHERE tier = 3')
+        stats['tier_3_count'] = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM businesses WHERE tier = 4')
+        stats['tier_4_count'] = cursor.fetchone()[0]
+        
+        # Lead distribution
+        cursor.execute('SELECT COUNT(*) FROM businesses WHERE lead_score >= 70')
+        stats['high_priority'] = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM businesses WHERE lead_score BETWEEN 40 AND 69')
+        stats['medium_priority'] = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM businesses WHERE lead_score < 40')
+        stats['low_priority'] = cursor.fetchone()[0]
+        
+        conn.close()
+        return stats
+```
+
+**File:** FOUR_AGENT_INTEGRATION_REPORT.md (L23-36)
+```markdown
+**Example (Java House - Tier 2)**:
+```json
+{
+  "tier": "Tier 2",
+  "currentWebsiteStatus": "outdated",
+  "problemsDetected": [
+    "Visual design is aged (pre-2020 aesthetic)",
+    "Poor mobile responsiveness",
+    "Missing modern UX patterns",
+    "Losing customers to competitors"
+  ],
+  "priorityFocus": "Complete redesign with contemporary standards and features"
+}
+```
+```
+
+**File:** FOUR_AGENT_INTEGRATION_REPORT.md (L50-68)
+```markdown
+**Example (Java House - Restaurant Niche)**:
+```json
+{
+  "competitorsFound": 3,
+  "competitorNames": ["Market Leader 1", "Market Leader 2", "Market Leader 3"],
+  "marketOpportunities": [
+    "User-generated content showcase (customer photos)",
+    "Ingredient sourcing transparency",
+    "Chef video introduction"
+  ],
+  "competitiveThreats": {
+    "mostCommon": [
+      "Generic stock food photos",
+      "Identical testimonial cards",
+      "Black backgrounds (overused for 'premium')"
+    ]
+  }
+}
+```
+```
+
+**File:** FOUR_AGENT_INTEGRATION_REPORT.md (L78-91)
+```markdown
+**Example (Java House - Restaurant)**:
+```json
+{
+  "designStyle": "Warm, inviting, premium comfort",
+  "colorPalette": {
+    "primary": "#c85a1f",      // Warm orange (not cliché red)
+    "secondary": "#f4a460",    // Lighter warm tone
+    "accent": "#8b4513"        // Deep brown (earthiness)
+  },
+  "animationLevel": "moderate (fade, slide, hover)",
+  "uiPersonality": "Confident, original, tier-appropriate (Tier 2)"
+}
+```
+
+```
+
+**File:** FOUR_AGENT_INTEGRATION_REPORT.md (L103-112)
+```markdown
+**Example (River Tech - Tier 3)**:
+```json
+{
+  "structure": {
+    "pages": 1,
+    "sections": ["navigation", "hero", "features", "metrics", "comparison", "testimonials", "cta", "footer"],
+    "totalComponents": 18,
+    "complexity": "advanced"
+  }
+}
+```
+
+**File:** FOUR_AGENT_INTEGRATION_REPORT.md (L115-120)
+```markdown
+**Tier-Appropriate Structures**:
+- **Tier 1**: 3 sections, 6 components, minimal animations
+- **Tier 2**: 6 sections, 12 components, moderate animations
+- **Tier 3**: 8 sections, 18 components, advanced interactions
+- **Tier 4**: 8+ sections, 24+ components, custom micro-interactions
+
+```
+
+**File:** FOUR_AGENT_INTEGRATION_REPORT.md (L126-146)
+```markdown
+```
+scripts/
+├── market_aware_agent.py          # Core 4-agent orchestration (590 lines)
+├── demo_generation.py              # Main pipeline controller (287 lines)
+├── competitive_design_agent.py     # Design utilities (stub)
+├── enhanced_template.py             # HTML template generator (290 lines)
+├── curated_palettes.py              # Color system definitions
+└── ...other modules
+
+data/
+├── sample_leads.json                # Test data (3 leads)
+└── ...
+
+demo_sites/
+├── java-house.html                  # Generated demo (12 KB)
+├── nairobi-dental.html              # Generated demo (12 KB)
+├── river-tech.html                  # Generated demo (12 KB)
+└── ...
+
+demo_results.json                     # Pipeline output (4-agent analysis + metadata)
+```
+```
+
+**File:** FOUR_AGENT_INTEGRATION_REPORT.md (L149-168)
+```markdown
+
+```
+Input: Lead JSON
+    ↓
+[AGENT 1] Tier & Presence Analysis
+    ↓ (JSON)
+[AGENT 2] Competitive Intelligence
+    ↓ (JSON)
+[AGENT 3] Design Synthesis
+    ↓ (JSON)
+[AGENT 4] Demo Composition
+    ↓ (JSON)
+Design System Generation (color palette, animations)
+    ↓
+HTML Template Rendering
+    ↓
+Demo Sites Directory (demo_sites/*.html)
+    ↓
+Results Compilation (demo_results.json with all 4 agent outputs)
+```
+```
+
+**File:** FOUR_AGENT_INTEGRATION_REPORT.md (L175-188)
+```markdown
+
+| Lead | Industry | Tier | Status | Processing Time | HTML Size | Components |
+|------|----------|------|--------|-----------------|-----------|------------|
+| Java House | Restaurant | Tier 2 | ✅ Ready | 1.5s | 12 KB | 12 |
+| Nairobi Dental | Medical | Tier 1 | ✅ Ready | 1.5s | 12 KB | 6 |
+| River Tech | IT/Tech | Tier 3 | ✅ Ready | 1.5s | 12 KB | 18 |
+
+**Pipeline Summary**:
+- ✅ Total Leads Processed: 3
+- ✅ Success Rate: 100%
+- ✅ Average Processing Time: 1.5s per lead
+- ✅ Total Execution Time: 4.5 seconds
+- ✅ Results File: demo_results.json (properly compiled with all 4 agents)
+
+```
+
+**File:** FOUR_AGENT_INTEGRATION_REPORT.md (L269-298)
+```markdown
+```json
+{
+  "business_name": "River Tech",
+  "industry": "IT",
+  "tier": "Tier 3",
+  "niche": "tech",
+  "demo_url": "file:///...river-tech.html",
+  "status": "ready_for_client",
+  "marketAwareAnalysis": {
+    "agent1_tier_presence": {
+      // Agent 1 complete JSON output
+    },
+    "agent2_competitive_intelligence": {
+      // Agent 2 complete JSON output
+    },
+    "agent3_design_synthesis": {
+      // Agent 3 complete JSON output
+    },
+    "agent4_demo_composition": {
+      // Agent 4 complete JSON output
+    }
+  },
+  "design_tokens": {
+    "primary": "#2563eb",
+    "secondary": "#3b82f6",
+    "accent": "#10b981"
+  },
+  "generated_at": "2026-01-20T03:23:51.919580"
+}
+```
+```
+
+**File:** FOUR_AGENT_INTEGRATION_REPORT.md (L408-417)
+```markdown
+
+The 4-Agent Market-Aware Framework is now **fully integrated, validated, and production-ready**. 
+
+The system achieves the core vision:
+> "Autonomy that most coders achieve in months or weeks within clicks. Agentic AI autonomously pulls in competitive resources, develops unique designs, creates competitive webapps based on customer budget."
+
+**3 test leads → 100% success → 4-agent analysis explicit → production-ready demos → 4.5 seconds total.**
+
+The framework is ready for enterprise deployment.
+
+```
+
+**File:** scraper/scraper.py (L10-77)
+```python
+class FoursquareScraper:
+    def __init__(self, api_key: str = config.FOURSQUARE_API_KEY):
+        self.api_key = api_key
+        self.headers = {
+            "Accept": "application/json",
+            "Authorization": self.api_key
+        }
+        self.base_url = "https://api.foursquare.com/v3/places"
+        
+    def search_places(self, lat: float, lng: float, category_id: str, 
+                     radius: int = 5000, limit: int = 50) -> List[Dict]:
+        """Search for places near a location"""
+        url = f"{self.base_url}/search"
+        
+        params = {
+            "ll": f"{lat},{lng}",
+            "radius": radius,
+            "categories": category_id,
+            "limit": min(limit, 50),  # Foursquare max is 50 per request
+            "fields": "fsq_id,name,geocodes,location,categories,website,tel,email"
+        }
+        
+        try:
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            businesses = []
+            for place in data.get('results', []):
+                business = self._parse_place_data(place)
+                if business:
+                    businesses.append(business)
+            
+            return businesses
+            
+        except requests.exceptions.HTTPError as e:
+            if response.status_code == 401:
+                print(f"\n❌ API Authentication Failed (401 Unauthorized)")
+                print(f"Your Foursquare API key is invalid or expired.")
+                print(f"\nTo fix this:")
+                print(f"1. Go to https://foursquare.com/developers/")
+                print(f"2. Sign up/login and create a new project")
+                print(f"3. Get your API key")
+                print(f"4. Update it in config.py or use option 11 (Manage APIs) in quick_start.py\n")
+            else:
+                print(f"Error searching places: {e}")
+            return []
+        except requests.exceptions.RequestException as e:
+            print(f"Error searching places: {e}")
+            return []
+    
+    def get_place_details(self, fsq_id: str) -> Optional[Dict]:
+        """Get detailed information for a specific place"""
+        url = f"{self.base_url}/{fsq_id}"
+        
+        params = {
+            "fields": "fsq_id,name,geocodes,location,categories,website,tel,email,hours,rating,price,photos"
+        }
+        
+        try:
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            response.raise_for_status()
+            place = response.json()
+            return self._parse_place_data(place, detailed=True)
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Error getting place details: {e}")
+            return None
+```
+
+**File:** scripts/market_aware_agent.py (L33-125)
+```python
+def analyze_tier_and_presence(lead: Dict) -> Dict:
+    """
+    AGENT 1: Analyze business tier and website presence.
+    
+    Input: Lead with current_website_status, tier, industry
+    Output: Tier analysis with problems detected and priority focus
+    """
+    website_status = lead.get("current_website_status", "none").lower()
+    tier = lead.get("tier", "Tier 1")
+    industry = lead.get("industry", "General")
+
+    # Map website status to tier assessment
+    status_mapping = {
+        "none": {
+            "problems": [
+                "No online presence",
+                "Missing market visibility",
+                "No digital storefront",
+                "Lost customer acquisition channel",
+            ],
+            "priority": "Establish immediate online presence with competitive design",
+        },
+        "broken": {
+            "problems": [
+                "Website is inaccessible or non-functional",
+                "Damages business credibility",
+                "Lost revenue from website traffic",
+                "Technical debt blocking updates",
+            ],
+            "priority": "Rebuild from scratch with modern, reliable infrastructure",
+        },
+        "outdated": {
+            "problems": [
+                "Visual design is aged (pre-2020 aesthetic)",
+                "Poor mobile responsiveness",
+                "Missing modern UX patterns",
+                "Losing customers to competitors",
+            ],
+            "priority": "Complete redesign with contemporary standards and features",
+        },
+        "slow": {
+            "problems": [
+                "Performance issues (load time > 3s)",
+                "Poor user experience on mobile",
+                "High bounce rates",
+                "SEO ranking penalty from slow speed",
+            ],
+            "priority": "Optimize performance and modernize architecture",
+        },
+        "decent": {
+            "problems": [
+                "Missing competitive differentiation",
+                "Incomplete feature set",
+                "Outdated design system",
+                "No data-driven design strategy",
+            ],
+            "priority": "Add competitive features and refresh design language",
+        },
+        "competitive": {
+            "problems": [
+                "Good but not market-leading",
+                "Missing edge features that competitors have",
+                "Design is dated by 1-2 years",
+                "No AI-powered or innovative features",
+            ],
+            "priority": "Innovate beyond competitors with original design + advanced features",
+        },
+    }
+
+    status_analysis = status_mapping.get(
+        website_status,
+        {
+            "problems": ["Website status unclear"],
+            "priority": "Full competitive redesign recommended",
+        },
+    )
+
+    return {
+        "agent": "AGENT 1: TIER & PRESENCE ANALYSIS",
+        "timestamp": datetime.now().isoformat(),
+        "businessName": lead.get("business_name"),
+        "industry": industry,
+        "tier": tier,
+        "currentWebsiteStatus": website_status,
+        "problemsDetected": status_analysis["problems"],
+        "priorityFocus": status_analysis["priority"],
+        "tierBudgetAllocation": {
+            "Tier 1": "Minimal: 2-3 sections, no animations",
+            "Tier 2": "Moderate: 4-5 sections, smooth animations",
+            "Tier 3": "Premium: 6-8 sections, advanced interactions",
+            "Tier 4": "Enterprise: 8+ sections, custom components",
+        },
+    }
+```
+
+**File:** scripts/market_aware_agent.py (L133-150)
+```python
+def analyze_niche_intelligence(lead: Dict) -> Dict:
+    """
+    AGENT 2: Analyze competitors and extract niche standards.
+    
+    Input: Lead with niche, industry
+    Output: Niche standards, overused patterns, and opportunities
+    """
+    niche = lead.get("niche", "general")
+    industry = lead.get("industry", "General").lower()
+
+    # Search for competitors
+    competitors = search_competitors(niche, limit=5)
+
+    # Niche-specific standards (curated from market research)
+    niche_standards_map = {
+        "restaurant": {
+            "layouts": [
+                "Hero with food imagery + reservation CTA",
+```
+
+**File:** scripts/demo_generation.py (L1-58)
+```python
+"""
+Demo Generation Pipeline - Integrated with Market-Aware 4-Agent System
+
+Pipeline Flow:
+1. Load leads from JSON
+2. For each lead:
+   a. Run 4-Agent Market-Aware Analysis
+   b. Generate design system
+   c. Render HTML template
+   d. Deploy to Vercel
+3. Save results with full agent outputs
+"""
+
+import sys
+from pathlib import Path
+from datetime import datetime
+import random
+import time
+import json
+import os
+import subprocess
+
+# Add parent directories to path
+scripts_dir = Path(__file__).parent
+sys.path.insert(0, str(scripts_dir))
+sys.path.insert(0, str(scripts_dir.parent))
+
+# Imports
+import importlib.util
+
+def load_module(module_name, file_path):
+    """Load module from file path."""
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+try:
+    # Load modules
+    competitive_design_agent = load_module("competitive_design_agent", scripts_dir / "competitive_design_agent.py")
+    enhanced_template = load_module("enhanced_template", scripts_dir / "enhanced_template.py")
+    curated_palettes = load_module("curated_palettes", scripts_dir / "curated_palettes.py")
+    market_aware_agent = load_module("market_aware_agent", scripts_dir / "market_aware_agent.py")
+    
+    # Extract functions
+    search_competitors = competitive_design_agent.search_competitors
+    generate_design_brief = competitive_design_agent.generate_design_brief
+    generate_original_palette = competitive_design_agent.generate_original_palette
+    build_enhanced_template = enhanced_template.build_enhanced_template
+    niche_palettes = curated_palettes.niche_palettes
+    run_market_aware_pipeline = market_aware_agent.run_market_aware_pipeline
+    
+except Exception as e:
+    print(f"Import error: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+
+```
+
+**File:** scripts/demo_generation.py (L77-150)
+```python
+def process_lead_with_agents(lead: dict, pause_range=(1.0, 2.5)) -> dict:
+    """
+    Process a single lead through the complete 4-agent pipeline.
+    
+    Steps:
+    1. Run Market-Aware 4-Agent Analysis
+    2. Generate design system (palette, components)
+    3. Build HTML template
+    4. Deploy to Vercel (optional)
+    
+    Returns: Lead + agent analysis + demo URL
+    """
+    
+    print(f"\n{'='*72}")
+    print(f"Processing: {lead.get('business_name', 'Unknown')}")
+    print(f"{'='*72}")
+    
+    # Assign niche
+    lead["niche"] = industry_niche(lead.get("industry", ""))
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # 4-AGENT MARKET-AWARE ANALYSIS
+    # ═══════════════════════════════════════════════════════════════════
+    print("\n🔍 Running 4-Agent Market-Aware Analysis...")
+    market_analysis = run_market_aware_pipeline(lead)
+    
+    # Extract key outputs
+    tier_analysis = market_analysis["marketAwareAnalysis"]["agent1_tier_presence"]
+    niche_intel = market_analysis["marketAwareAnalysis"]["agent2_competitive_intelligence"]
+    design_synthesis = market_analysis["marketAwareAnalysis"]["agent3_design_synthesis"]
+    demo_composition = market_analysis["marketAwareAnalysis"]["agent4_demo_composition"]
+    
+    print(f"✓ Tier Analysis: {tier_analysis['tier']}")
+    print(f"✓ Competitors Found: {niche_intel['competitorsFound']}")
+    print(f"✓ Design Style: {design_synthesis['designStyle']}")
+    print(f"✓ Sections: {len(demo_composition['structure']['sections'])}")
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # DESIGN SYSTEM GENERATION
+    # ═══════════════════════════════════════════════════════════════════
+    print("\n🎨 Generating Design System...")
+    
+    competitors = niche_intel.get("competitorNames", [])
+    design_brief = generate_design_brief(
+        [{"name": c} for c in competitors],
+        lead.get("tier", "Tier 1")
+    )
+    
+    # Use synthesized palette
+    tokens = design_synthesis.get("colorPalette", {})
+    if not tokens:
+        tokens = generate_original_palette([], lead["niche"], lead.get("tier", "Tier 1"))
+    
+    print(f"✓ Primary Color: {tokens.get('primary')}")
+    print(f"✓ Animation Level: {design_synthesis['animationLevel']}")
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # HTML TEMPLATE RENDERING
+    # ═══════════════════════════════════════════════════════════════════
+    print("\n🏗️ Rendering HTML Template...")
+    
+    html_content = build_enhanced_template(lead, tokens)
+    
+    # Save to demo_sites
+    filename = lead.get("business_name", "demo").lower().replace(" ", "-").replace("_", "-")
+    demo_file = f"demo_sites/{filename}.html"
+    
+    os.makedirs("demo_sites", exist_ok=True)
+    with open(demo_file, "w") as f:
+        f.write(html_content)
+    
+    file_size = len(html_content) / 1024
+    print(f"✓ Saved: {demo_file} ({file_size:.1f} KB)")
+    
+```
+
+**File:** README.md (L84-114)
+```markdown
+## 📦 Current Features
+
+### 🔍 Lead Scraper
+**Status:** ✅ Production Ready
+
+**Tier Classification:**
+- **Tier 1:** No website (highest value) - 45% of leads
+- **Tier 2:** Critical issues (SSL, mobile, broken) - 30%
+- **Tier 3:** Multiple problems (SEO, performance) - 15%
+- **Tier 4:** Good websites (low priority) - 10%
+
+**Database Stats:**
+```
+Total: 595 businesses
+├── Kenya: 247
+├── USA: 100
+├── UK: 50
+├── France: 48
+├── Germany: 50
+└── Others: 100
+```
+
+**Usage:**
+```bash
+# Run analysis
+python scraper/start_comprehensive_analysis.py
+
+# Query database
+sqlite3 businesses.db "SELECT name, country, website, tier FROM businesses WHERE tier = 1 LIMIT 10"
+```
+
+```
+
+**File:** README.md (L138-144)
+```markdown
+
+### Target Clients
+- **Tier 1:** $2,000 - $5,000 website builds
+- **Tier 2:** $500 - $2,000 fixes/redesigns
+- **Tier 3:** $300 - $1,000 optimization
+
+### ROI Example
+```
+# Next Steps After Enterprise Architecture Implementation
+
+After completing the enterprise architecture refactor, here are the strategic next phases for transforming Renovation Automations into a market-leading SaaS platform:
+
+---
+
+## **Phase 4: Business Operations & Client Management** (Months 3-4)
+
+### **4.1 Client Portal Development**
+Build the missing client-facing infrastructure that was planned but never implemented [1](#5-0) :
+
+```python
+# domains/client_management/portal.py
+class ClientPortal:
+    def create_project_dashboard(self, client_id):
+        """Live progress tracking with milestones"""
+        return {
+            'timeline': self.get_project_timeline(client_id),
+            'current_stage': self.get_active_stage(client_id),
+            'completed_tasks': self.get_completed_tasks(client_id),
+            'demo_links': self.get_demo_urls(client_id),
+            'payment_status': self.get_payment_status(client_id)
+        }
+```
+
+### **4.2 Payment Processing Integration**
+Implement the payment infrastructure that's marked as "Coming Soon" [2](#5-1) :
+
+```python
+# domains/payments/processor.py
+class PaymentProcessor:
+    def __init__(self):
+        self.mpesa_client = MpesaClient()
+        self.stripe_client = StripeClient()
+    
+    def process_payment(self, amount, method, client_data):
+        """Unified payment processing for M-Pesa and Stripe"""
+        if method == "mpesa":
+            return self.mpesa_client.process_stk_push(amount, client_data)
+        elif method == "stripe":
+            return self.stripe_client.create_payment_intent(amount, client_data)
+```
+
+### **4.3 Automated Outreach System**
+Build the email/WhatsApp campaigns that are referenced in the business plan:
+
+```python
+# domains/outreach/campaigns.py
+class OutreachCampaign:
+    def create_tiered_campaign(self, tier):
+        """Generate personalized outreach based on business tier"""
+        templates = {
+            1: "instant_demo_template",  # No website
+            2: "redesign_template",     # Outdated site  
+            3: "optimization_template", # Performance issues
+            4: "enhancement_template"   # Good site, add features
+        }
+        return self.generate_campaign(templates[tier])
+```
+
+---
+
+## **Phase 5: Advanced Service Expansion** (Months 5-6)
+
+### **5.1 3D & Animation Studio**
+Implement the advanced visual capabilities mentioned in your growth vision:
+
+```python
+# domains/advanced_services/3d_studio.py
+class ThreeDStudio:
+    def generate_3d_demo(self, business_data, complexity_level):
+        """Generate 3D website elements and animations"""
+        if complexity_level == "premium":
+            return self.create_webgl_experience(business_data)
+        elif complexity_level == "standard":
+            return self.create_css3d_elements(business_data)
+        else:
+            return self.create_enhanced_2d(business_data)
+```
+
+### **5.2 Web3 Integration**
+Add blockchain capabilities for premium clients:
+
+```python
+# domains/web3/integration.py
+class Web3Services:
+    def deploy_smart_contract(self, client_requirements):
+        """Deploy custom smart contracts for businesses"""
+        if client_requirements.get('token_needed'):
+            return self.create_token_contract(client_requirements)
+        elif client_requirements.get('nft_needed'):
+            return self.create_nft_contract(client_requirements)
+```
+
+### **5.3 Freelancer Management Platform**
+Build the contractor system for scaling operations:
+
+```python
+# domains/freelancer/platform.py
+class FreelancerPlatform:
+    def create_project_gig(self, project_requirements):
+        """Create freelance gigs with secure access controls"""
+        return {
+            'project_id': self.generate_project_id(),
+            'access_scope': self.define_access_permissions(project_requirements),
+            'payment_terms': self.calculate_freelancer_payment(project_requirements),
+            'deadline': self.estimate_delivery_time(project_requirements)
+        }
+```
+
+---
+
+## **Phase 6: SaaS Platform & Commercialization** (Months 7-12)
+
+### **6.1 Multi-Tenant Architecture**
+Transform the single-tenant system into a true SaaS platform:
+
+```python
+# infrastructure/tenant_management.py
+class TenantManager:
+    def create_tenant_instance(self, organization_data):
+        """Create isolated instance for each customer"""
+        return {
+            'database': self.create_isolated_database(organization_data),
+            'subdomain': f"{organization_data['slug']}.techhive.co.ke",
+            'api_keys': self.generate_tenant_api_keys(),
+            'feature_limits': self.apply_tier_limits(organization_data['plan'])
+        }
+```
+
+### **6.2 API Gateway & Licensing**
+Build the licensing system for selling the automation platform:
+
+```python
+# api/gateway/license_manager.py
+class LicenseManager:
+    def validate_license(self, api_key, feature_requested):
+        """Check if tenant has license for requested feature"""
+        tenant = self.get_tenant_by_api_key(api_key)
+        return self.check_feature_access(tenant, feature_requested)
+    
+    def create_license_package(self, package_type):
+        """Create licensable feature packages"""
+        packages = {
+            'starter': ['lead_scraping', 'basic_demos'],
+            'professional': ['lead_scraping', 'advanced_demos', 'client_portal'],
+            'enterprise': ['all_features', 'white_label', 'api_access']
+        }
+        return packages[package_type]
+```
+
+### **6.3 Analytics & Intelligence Layer**
+Add business intelligence for competitive advantage:
+
+```python
+# domains/analytics/intelligence.py
+class BusinessIntelligence:
+    def analyze_market_opportunities(self, geographic_region):
+        """Identify high-value market opportunities"""
+        return {
+            'untapped_businesses': self.find_businesses_without_websites(geographic_region),
+            'competitor_gaps': self.analyze_competitor_weaknesses(geographic_region),
+            'revenue_potential': self.calculate_market_size(geographic_region)
+        }
+```
+
+---
+
+## **Phase 7: Market Expansion & Domination** (Year 2)
+
+### **7.1 Geographic Scaling**
+Expand from Kenya to pan-African markets:
+
+```python
+# domains/expansion/geo_scaling.py
+class GeographicExpansion:
+    def enter_new_market(self, country_code):
+        """Automated market entry strategy"""
+        return {
+            'local_apis': self.integrate_local_business_directories(country_code),
+            'payment_methods': self.setup_local_payment_methods(country_code),
+            'compliance': self.ensure_local_regulations(country_code),
+            'lead_sources': self.identify_local_lead_sources(country_code)
+        }
+```
+
+### **7.2 Industry Vertical Specialization**
+Create specialized solutions for different industries:
+
+```python
+# domains/verticals/specialization.py
+class IndustrySpecialization:
+    def create_vertical_solution(self, industry_type):
+        """Industry-specific automation packages"""
+        solutions = {
+            'restaurants': {'features': ['menu_integration', 'reservation_system', 'delivery_tracking']},
+            'medical': {'features': ['appointment_booking', 'patient_portal', 'hipaa_compliance']},
+            'real_estate': {'features': ['property_listings', 'virtual_tours', 'crm_integration']},
+            'ecommerce': {'features': ['inventory_management', 'payment_processing', 'shipping_integration']}
+        }
+        return solutions[industry_type]
+```
+
+---
+
+## **Implementation Priority Matrix**
+
+| Phase | Time | Revenue Impact | Technical Complexity | Business Value |
+|-------|------|----------------|---------------------|----------------|
+| **Business Operations** | 2 months | High | Medium | Critical |
+| **Advanced Services** | 2 months | Very High | High | High |
+| **SaaS Platform** | 6 months | Extreme | Very High | Transformative |
+| **Market Expansion** | 6 months | Extreme | Medium | Strategic |
+
+---
+
+## **Success Metrics & KPIs**
+
+### **Technical Metrics**
+- **System Reliability**: 99.9% uptime
+- **Processing Speed**: <2 seconds per lead
+- **Scalability**: 10,000+ concurrent users
+- **Security**: Zero data breaches
+
+### **Business Metrics**
+- **Revenue Growth**: 100% month-over-month
+- **Customer Acquisition**: 50 new clients/month
+- **Market Share**: #1 in Kenyan web automation
+- **Expansion**: 5 African countries by Year 2
+
+### **Operational Metrics**
+- **Automation Efficiency**: 95% of tasks automated
+- **Client Satisfaction**: 4.8/5 average rating
+- **Freelancer Network**: 100+ active contractors
+- **Platform Adoption**: 1,000+ SaaS customers
+
+---
+
+## **Strategic Partnerships & Ecosystem**
+
+### **Technology Partners**
+- **Cloud Providers**: AWS, Azure for enterprise scaling
+- **Payment Gateways**: Additional African payment methods
+- **AI Platforms**: OpenAI, Anthropic for advanced automation
+- **CDN Networks**: Cloudflare for global demo delivery
+
+### **Business Partners**
+- **Digital Agencies**: White-label partnerships
+- **Freelance Platforms**: Upwork, Fiverr integrations
+- **Business Associations**: Chamber of commerce partnerships
+- **Government Programs**: Digital transformation initiatives
+
+---
+
+## **Exit Strategy Options**
+
+After reaching Year 2 targets, consider these exit paths:
+
+### **1. Strategic Acquisition**
+- Target buyers: Large tech companies, digital agencies
+- Valuation: 10x annual recurring revenue
+- Timeline: 24-36 months
+
+### **2. Private Equity Funding**
+- Series A funding for rapid expansion
+- Target: $10M+ valuation
+- Use case: Pan-African expansion
+
+### **3. IPO Preparation**
+- Public listing on Nairobi Securities Exchange
+- Requirements: 3 years of profitable growth
+- Timeline: 3-5 years
+
+---
+
+## Notes
+
+The enterprise architecture refactor provides the foundation for transforming from a technical demo into a scalable business platform. The key is maintaining the technical excellence while building the business layers that turn automation capability into market value.
+
+Your current 4-agent demo system [3](#5-2)  and lead scraper [4](#5-3)  give you a significant technical advantage. The next phases focus on monetizing this advantage through business operations, advanced services, and platform commercialization.
+
+The timeline is aggressive but achievable given your solid technical foundation and clear market opportunity in the African digital transformation space.
+
+Wiki pages you might want to explore:
+- [System Architecture (middlechild0/Renovation)](/wiki/middlechild0/Renovation#2)
+
+### Citations
+
+**File:** README.md (L31-34)
+```markdown
+4. **💳 Payment Processing** (Coming Soon)
+   - Integrated payment gateways
+   - Automated invoicing
+
+```
+
+**File:** README.md (L86-104)
+```markdown
+### 🔍 Lead Scraper
+**Status:** ✅ Production Ready
+
+**Tier Classification:**
+- **Tier 1:** No website (highest value) - 45% of leads
+- **Tier 2:** Critical issues (SSL, mobile, broken) - 30%
+- **Tier 3:** Multiple problems (SEO, performance) - 15%
+- **Tier 4:** Good websites (low priority) - 10%
+
+**Database Stats:**
+```
+Total: 595 businesses
+├── Kenya: 247
+├── USA: 100
+├── UK: 50
+├── France: 48
+├── Germany: 50
+└── Others: 100
+```
+```
+
+**File:** README.md (L171-176)
+```markdown
+### 📅 Phase 3: Scale (Planned)
+- [ ] Dashboard
+- [ ] Analytics
+- [ ] Payment integration
+- [ ] Client portal
+
+```
+
+**File:** FOUR_AGENT_INTEGRATION_REPORT.md (L408-417)
+```markdown
+
+The 4-Agent Market-Aware Framework is now **fully integrated, validated, and production-ready**. 
+
+The system achieves the core vision:
+> "Autonomy that most coders achieve in months or weeks within clicks. Agentic AI autonomously pulls in competitive resources, develops unique designs, creates competitive webapps based on customer budget."
+
+**3 test leads → 100% success → 4-agent analysis explicit → production-ready demos → 4.5 seconds total.**
+
+The framework is ready for enterprise deployment.
+
+```

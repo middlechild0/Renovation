@@ -3,6 +3,8 @@ Enhanced Template Generator
 Builds full-featured responsive HTML templates
 """
 
+import os
+
 def build_enhanced_template(lead, tokens):
     """Build enhanced HTML template with design tokens."""
     
@@ -13,6 +15,14 @@ def build_enhanced_template(lead, tokens):
     primary = tokens.get("primary", "#2563eb")
     secondary = tokens.get("secondary", "#3b82f6")
     accent = tokens.get("accent", "#10b981")
+    
+    enable_payments = os.getenv("ENABLE_PAYMENTS", "0") == "1" or bool(lead.get("enable_payments"))
+    pay_button_html = ""
+    if enable_payments:
+        safe_business = business_name.lower().replace(" ", "-").replace("_", "-")
+        pay_button_html = f"""
+            <a href=\"/pay?business={safe_business}\" style=\"margin-left: 1rem; background: var(--accent); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none;\">Pay Deposit</a>
+        """
     
     html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -338,7 +348,10 @@ def build_enhanced_template(lead, tokens):
     <header>
         <div class="container">
             <h1>{business_name}</h1>
-            <a href="#contact">Get Started</a>
+            <div>
+                <a href="#contact">Get Started</a>
+                {pay_button_html}
+            </div>
         </div>
     </header>
     
