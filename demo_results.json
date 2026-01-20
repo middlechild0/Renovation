@@ -1,0 +1,286 @@
+[
+  {
+    "business_name": "Java House",
+    "industry": "Restaurant",
+    "phone": "+254712345678",
+    "email": "contact@javahouse.co.ke",
+    "website": "javahouse.co.ke",
+    "current_website_status": "outdated",
+    "tier": "Tier 2",
+    "demo_url": "file:///home/shalekami/Desktop/Jimmy/Sajim/Scraper/demo_sites/demo_sites/java-house.html",
+    "contact_channel": "whatsapp_or_sms",
+    "host_provider": "local",
+    "niche": "restaurant landing page",
+    "marketAwareAnalysis": {
+      "agent1_tier_presence": {
+        "agent": "AGENT 1: TIER & PRESENCE ANALYSIS",
+        "timestamp": "2026-01-20T04:20:17.114446",
+        "businessName": "Java House",
+        "industry": "Restaurant",
+        "tier": "Tier 2",
+        "currentWebsiteStatus": "outdated",
+        "problemsDetected": [
+          "Visual design is aged (pre-2020 aesthetic)",
+          "Poor mobile responsiveness",
+          "Missing modern UX patterns",
+          "Losing customers to competitors"
+        ],
+        "priorityFocus": "Complete redesign with contemporary standards and features",
+        "tierBudgetAllocation": {
+          "Tier 1": "Minimal: 2-3 sections, no animations",
+          "Tier 2": "Moderate: 4-5 sections, smooth animations",
+          "Tier 3": "Premium: 6-8 sections, advanced interactions",
+          "Tier 4": "Enterprise: 8+ sections, custom components"
+        }
+      },
+      "agent2_competitive_intelligence": {
+        "competitorsFound": 3,
+        "competitorNames": [
+          "Market Leader 1",
+          "Market Leader 2",
+          "Market Leader 3"
+        ],
+        "opportunities": [
+          "User-generated content showcase (customer photos)",
+          "Ingredient sourcing transparency",
+          "Chef video introduction"
+        ],
+        "overusedPatterns": [
+          "Generic stock food photos",
+          "Identical testimonial cards",
+          "Black backgrounds (overused for 'premium')"
+        ]
+      },
+      "agent3_design_synthesis": {
+        "designStyle": "Warm, inviting, premium comfort",
+        "colorPalette": {
+          "primary": "#c85a1f",
+          "secondary": "#f4a460",
+          "accent": "#8b4513",
+          "success": "#10b981",
+          "neutral": "#f5f5f5"
+        },
+        "animationLevel": "moderate (fade, slide, hover)",
+        "uiPersonality": "Confident, original, tier-appropriate (Tier 2)"
+      },
+      "agent4_demo_composition": {
+        "sections": [
+          "navigation",
+          "hero",
+          "features",
+          "testimonials",
+          "cta",
+          "footer"
+        ],
+        "components": 12,
+        "complexity": "moderate"
+      }
+    },
+    "competitors_analyzed": 3,
+    "design_brief": {
+      "tier": "Tier 2",
+      "layout": "hero + features + testimonials + cta",
+      "animation": "moderate",
+      "features": 4
+    },
+    "design_tokens": {
+      "primary": "#c85a1f",
+      "secondary": "#f4a460",
+      "accent": "#8b4513",
+      "success": "#10b981",
+      "neutral": "#f5f5f5"
+    },
+    "generated_at": "2026-01-20T04:20:19.531049",
+    "generation_time_seconds": "~7",
+    "status": "ready_for_client"
+  },
+  {
+    "business_name": "Nairobi Dental",
+    "industry": "Medical",
+    "phone": "+254723456789",
+    "email": "info@nairobidental.com",
+    "website": "nairobidental.com",
+    "current_website_status": "none",
+    "tier": "Tier 1",
+    "demo_url": "file:///home/shalekami/Desktop/Jimmy/Sajim/Scraper/demo_sites/demo_sites/nairobi-dental.html",
+    "contact_channel": "whatsapp_or_sms",
+    "host_provider": "local",
+    "niche": "clinic landing page",
+    "marketAwareAnalysis": {
+      "agent1_tier_presence": {
+        "agent": "AGENT 1: TIER & PRESENCE ANALYSIS",
+        "timestamp": "2026-01-20T04:20:19.531199",
+        "businessName": "Nairobi Dental",
+        "industry": "Medical",
+        "tier": "Tier 1",
+        "currentWebsiteStatus": "none",
+        "problemsDetected": [
+          "No online presence",
+          "Missing market visibility",
+          "No digital storefront",
+          "Lost customer acquisition channel"
+        ],
+        "priorityFocus": "Establish immediate online presence with competitive design",
+        "tierBudgetAllocation": {
+          "Tier 1": "Minimal: 2-3 sections, no animations",
+          "Tier 2": "Moderate: 4-5 sections, smooth animations",
+          "Tier 3": "Premium: 6-8 sections, advanced interactions",
+          "Tier 4": "Enterprise: 8+ sections, custom components"
+        }
+      },
+      "agent2_competitive_intelligence": {
+        "competitorsFound": 3,
+        "competitorNames": [
+          "Market Leader 1",
+          "Market Leader 2",
+          "Market Leader 3"
+        ],
+        "opportunities": [
+          "Personalized health journey tracking",
+          "AI symptom checker pre-appointment",
+          "Video testimonials from real patients"
+        ],
+        "overusedPatterns": [
+          "Stock photos of doctors in white coats",
+          "Overly clinical aesthetic (cold feel)",
+          "Excessive medical jargon"
+        ]
+      },
+      "agent3_design_synthesis": {
+        "designStyle": "Professional, trustworthy, approachable",
+        "colorPalette": {
+          "primary": "#0891b2",
+          "secondary": "#06b6d4",
+          "accent": "#10b981",
+          "success": "#10b981",
+          "neutral": "#f5f5f5"
+        },
+        "animationLevel": "minimal (fade-in only)",
+        "uiPersonality": "Confident, original, tier-appropriate (Tier 1)"
+      },
+      "agent4_demo_composition": {
+        "sections": [
+          "navigation",
+          "hero",
+          "cta"
+        ],
+        "components": 6,
+        "complexity": "minimal"
+      }
+    },
+    "competitors_analyzed": 3,
+    "design_brief": {
+      "tier": "Tier 1",
+      "layout": "hero + features + testimonials + cta",
+      "animation": "moderate",
+      "features": 2
+    },
+    "design_tokens": {
+      "primary": "#0891b2",
+      "secondary": "#06b6d4",
+      "accent": "#10b981",
+      "success": "#10b981",
+      "neutral": "#f5f5f5"
+    },
+    "generated_at": "2026-01-20T04:20:21.876274",
+    "generation_time_seconds": "~7",
+    "status": "ready_for_client"
+  },
+  {
+    "business_name": "River Tech",
+    "industry": "IT",
+    "phone": "+254701111111",
+    "email": "hello@rivertech.co.ke",
+    "website": "rivertech.co.ke",
+    "current_website_status": "slow",
+    "tier": "Tier 3",
+    "demo_url": "file:///home/shalekami/Desktop/Jimmy/Sajim/Scraper/demo_sites/demo_sites/river-tech.html",
+    "contact_channel": "whatsapp_or_sms",
+    "host_provider": "local",
+    "niche": "tech landing page",
+    "marketAwareAnalysis": {
+      "agent1_tier_presence": {
+        "agent": "AGENT 1: TIER & PRESENCE ANALYSIS",
+        "timestamp": "2026-01-20T04:20:21.876508",
+        "businessName": "River Tech",
+        "industry": "IT",
+        "tier": "Tier 3",
+        "currentWebsiteStatus": "slow",
+        "problemsDetected": [
+          "Performance issues (load time > 3s)",
+          "Poor user experience on mobile",
+          "High bounce rates",
+          "SEO ranking penalty from slow speed"
+        ],
+        "priorityFocus": "Optimize performance and modernize architecture",
+        "tierBudgetAllocation": {
+          "Tier 1": "Minimal: 2-3 sections, no animations",
+          "Tier 2": "Moderate: 4-5 sections, smooth animations",
+          "Tier 3": "Premium: 6-8 sections, advanced interactions",
+          "Tier 4": "Enterprise: 8+ sections, custom components"
+        }
+      },
+      "agent2_competitive_intelligence": {
+        "competitorsFound": 3,
+        "competitorNames": [
+          "Market Leader 1",
+          "Market Leader 2",
+          "Market Leader 3"
+        ],
+        "opportunities": [
+          "Minimal color system (reduce noise)",
+          "Custom illustrations instead of stock photos",
+          "Asymmetric layouts (unexpected)"
+        ],
+        "overusedPatterns": [
+          "Blue\u2192purple gradient backgrounds (90% of tech sites)",
+          "Stock photos of people in meetings",
+          "Identical testimonial card layouts"
+        ]
+      },
+      "agent3_design_synthesis": {
+        "designStyle": "Minimal, bold, confident (not flashy)",
+        "colorPalette": {
+          "primary": "#2563eb",
+          "secondary": "#3b82f6",
+          "accent": "#10b981",
+          "success": "#10b981",
+          "neutral": "#f5f5f5"
+        },
+        "animationLevel": "advanced (staggered, micro-interactions)",
+        "uiPersonality": "Confident, original, tier-appropriate (Tier 3)"
+      },
+      "agent4_demo_composition": {
+        "sections": [
+          "navigation",
+          "hero",
+          "features",
+          "metrics",
+          "comparison",
+          "testimonials",
+          "cta",
+          "footer"
+        ],
+        "components": 18,
+        "complexity": "advanced"
+      }
+    },
+    "competitors_analyzed": 3,
+    "design_brief": {
+      "tier": "Tier 3",
+      "layout": "hero + features + testimonials + cta",
+      "animation": "moderate",
+      "features": 6
+    },
+    "design_tokens": {
+      "primary": "#2563eb",
+      "secondary": "#3b82f6",
+      "accent": "#10b981",
+      "success": "#10b981",
+      "neutral": "#f5f5f5"
+    },
+    "generated_at": "2026-01-20T04:20:23.374364",
+    "generation_time_seconds": "~7",
+    "status": "ready_for_client"
+  }
+]
