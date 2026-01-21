@@ -1,0 +1,458 @@
+/**
+ * Live Preview Component
+ * 
+ * Renders the template with real-time customizations applied
+ */
+
+'use client';
+
+import { useProjectStore } from '@/store/project';
+import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+
+export function LivePreview() {
+  const { currentProject, design, content, previewMode } = useProjectStore();
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    // Calculate scale based on preview mode
+    const updateScale = () => {
+      const container = document.getElementById('preview-container');
+      if (!container) return;
+
+      const containerWidth = container.clientWidth;
+      let targetWidth = 1920; // Desktop
+
+      if (previewMode === 'tablet') {
+        targetWidth = 768;
+      } else if (previewMode === 'mobile') {
+        targetWidth = 375;
+      }
+
+      setScale(Math.min(containerWidth / targetWidth, 1));
+    };
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, [previewMode]);
+
+  if (!currentProject || !design) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-100">
+        <p className="text-gray-500">Select a template to start designing</p>
+      </div>
+    );
+  }
+
+  const template = currentProject.template;
+  const previewWidth = previewMode === 'desktop' ? '100%' : previewMode === 'tablet' ? '768px' : '375px';
+
+  return (
+    <div
+      id="preview-container"
+      className="h-full bg-gray-100 overflow-auto flex justify-center p-8"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        style={{
+          width: previewWidth,
+          maxWidth: '100%',
+          transform: `scale(${scale})`,
+          transformOrigin: 'top center',
+        }}
+        className="bg-white shadow-2xl rounded-lg overflow-hidden"
+      >
+        <style jsx global>{`
+          :root {
+            --primary-color: ${design.colors.primary};
+            --secondary-color: ${design.colors.secondary};
+            --accent-color: ${design.colors.accent};
+            --background-color: ${design.colors.background};
+            --text-color: ${design.colors.text};
+            --text-secondary-color: ${design.colors.textSecondary};
+            --font-primary: ${design.fonts.primary};
+            --font-secondary: ${design.fonts.secondary};
+            --font-heading: ${design.fonts.heading};
+            --spacing-scale: ${design.spacing};
+            --border-radius: ${design.borderRadius}px;
+          }
+
+          .preview-content * {
+            font-family: var(--font-primary), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          }
+
+          .preview-content h1,
+          .preview-content h2,
+          .preview-content h3,
+          .preview-content h4,
+          .preview-content h5,
+          .preview-content h6 {
+            font-family: var(--font-heading), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          }
+        `}</style>
+
+        <div className="preview-content">
+          {template.sections.map((section, index) => (
+            <PreviewSection
+              key={section.id}
+              section={section}
+              design={design}
+              content={content[section.id]}
+              index={index}
+            />
+          ))}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function PreviewSection({ section, design, content, index }: any) {
+  const animationVariants = {
+    fade: {
+      hidden: { opacity: 0 },
+      visible: { opacity: 1 },
+    },
+    slide: {
+      hidden: { opacity: 0, y: 50 },
+      visible: { opacity: 1, y: 0 },
+    },
+    bounce: {
+      hidden: { opacity: 0, scale: 0.8 },
+      visible: { opacity: 1, scale: 1 },
+    },
+    none: {
+      hidden: {},
+      visible: {},
+    },
+  };
+
+  const variant = animationVariants[design.animations.style] || animationVariants.fade;
+
+  return (
+    <motion.section
+      initial={design.animations.enabled ? 'hidden' : 'visible'}
+      whileInView="visible"
+      viewport={{ once: true, margin: '-100px' }}
+      transition={{ duration: 0.6, delay: index * 0.1 }}
+      variants={variant}
+      style={{
+        padding: `calc(3rem * ${design.spacing})`,
+      }}
+    >
+      {/* Render section based on type */}
+      {section.type === 'hero' && <HeroSection section={section} design={design} content={content} />}
+      {section.type === 'features' && <FeaturesSection section={section} design={design} content={content} />}
+      {section.type === 'pricing' && <PricingSection section={section} design={design} content={content} />}
+      {section.type === 'testimonials' && <TestimonialsSection section={section} design={design} content={content} />}
+      {section.type === 'cta' && <CTASection section={section} design={design} content={content} />}
+      {section.type === 'gallery' && <GallerySection section={section} design={design} content={content} />}
+      {section.type === 'contact' && <ContactSection section={section} design={design} content={content} />}
+      {section.type === 'footer' && <FooterSection section={section} design={design} content={content} />}
+    </motion.section>
+  );
+}
+
+// Section Components
+function HeroSection({ section, design, content }: any) {
+  return (
+    <div className="text-center max-w-4xl mx-auto">
+      <h1
+        className="text-6xl font-bold mb-6"
+        style={{ color: design.colors.text }}
+      >
+        {content?.headline || 'Welcome to Your Site'}
+      </h1>
+      <p
+        className="text-xl mb-8"
+        style={{ color: design.colors.textSecondary }}
+      >
+        {content?.subheadline || 'Build something amazing with our platform'}
+      </p>
+      <button
+        className="px-8 py-4 text-white font-semibold text-lg transition-transform hover:scale-105"
+        style={{
+          backgroundColor: design.colors.primary,
+          borderRadius: `${design.borderRadius}px`,
+        }}
+      >
+        {content?.ctaText || 'Get Started'}
+      </button>
+    </div>
+  );
+}
+
+function FeaturesSection({ section, design, content }: any) {
+  const features = content?.features || [
+    { title: 'Feature 1', description: 'Amazing feature description' },
+    { title: 'Feature 2', description: 'Another great feature' },
+    { title: 'Feature 3', description: 'Even more features' },
+  ];
+
+  return (
+    <div>
+      <h2
+        className="text-4xl font-bold text-center mb-12"
+        style={{ color: design.colors.text }}
+      >
+        {content?.title || 'Features'}
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {features.map((feature: any, index: number) => (
+          <div
+            key={index}
+            className="p-6"
+            style={{
+              backgroundColor: design.colors.background,
+              borderRadius: `${design.borderRadius}px`,
+              border: `1px solid ${design.colors.textSecondary}20`,
+            }}
+          >
+            <h3
+              className="text-xl font-bold mb-3"
+              style={{ color: design.colors.text }}
+            >
+              {feature.title}
+            </h3>
+            <p style={{ color: design.colors.textSecondary }}>
+              {feature.description}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PricingSection({ section, design, content }: any) {
+  const plans = content?.plans || [
+    { name: 'Basic', price: '$9', features: ['Feature 1', 'Feature 2', 'Feature 3'] },
+    { name: 'Pro', price: '$29', features: ['Everything in Basic', 'Feature 4', 'Feature 5'] },
+    { name: 'Enterprise', price: '$99', features: ['Everything in Pro', 'Feature 6', 'Feature 7'] },
+  ];
+
+  return (
+    <div>
+      <h2
+        className="text-4xl font-bold text-center mb-12"
+        style={{ color: design.colors.text }}
+      >
+        {content?.title || 'Pricing'}
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        {plans.map((plan: any, index: number) => (
+          <div
+            key={index}
+            className="p-8 text-center"
+            style={{
+              backgroundColor: design.colors.background,
+              borderRadius: `${design.borderRadius}px`,
+              border: `2px solid ${index === 1 ? design.colors.primary : design.colors.textSecondary}20`,
+            }}
+          >
+            <h3
+              className="text-2xl font-bold mb-4"
+              style={{ color: design.colors.text }}
+            >
+              {plan.name}
+            </h3>
+            <div className="mb-6">
+              <span
+                className="text-5xl font-bold"
+                style={{ color: design.colors.primary }}
+              >
+                {plan.price}
+              </span>
+              <span style={{ color: design.colors.textSecondary }}>/month</span>
+            </div>
+            <ul className="space-y-3 mb-8">
+              {plan.features.map((feature: string, i: number) => (
+                <li key={i} style={{ color: design.colors.textSecondary }}>
+                  ✓ {feature}
+                </li>
+              ))}
+            </ul>
+            <button
+              className="w-full py-3 font-semibold"
+              style={{
+                backgroundColor: index === 1 ? design.colors.primary : 'transparent',
+                color: index === 1 ? 'white' : design.colors.primary,
+                border: `2px solid ${design.colors.primary}`,
+                borderRadius: `${design.borderRadius}px`,
+              }}
+            >
+              Choose Plan
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TestimonialsSection({ section, design, content }: any) {
+  const testimonials = content?.testimonials || [
+    { author: 'John Doe', role: 'CEO, Company', text: 'Amazing product!' },
+    { author: 'Jane Smith', role: 'Designer', text: 'Love the interface!' },
+  ];
+
+  return (
+    <div>
+      <h2
+        className="text-4xl font-bold text-center mb-12"
+        style={{ color: design.colors.text }}
+      >
+        {content?.title || 'Testimonials'}
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        {testimonials.map((testimonial: any, index: number) => (
+          <div
+            key={index}
+            className="p-6"
+            style={{
+              backgroundColor: design.colors.background,
+              borderRadius: `${design.borderRadius}px`,
+              border: `1px solid ${design.colors.textSecondary}20`,
+            }}
+          >
+            <p
+              className="mb-4 text-lg"
+              style={{ color: design.colors.text }}
+            >
+              "{testimonial.text}"
+            </p>
+            <div>
+              <p
+                className="font-bold"
+                style={{ color: design.colors.text }}
+              >
+                {testimonial.author}
+              </p>
+              <p style={{ color: design.colors.textSecondary }}>
+                {testimonial.role}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CTASection({ section, design, content }: any) {
+  return (
+    <div
+      className="text-center py-20 px-8"
+      style={{
+        backgroundColor: design.colors.primary,
+        borderRadius: `${design.borderRadius}px`,
+      }}
+    >
+      <h2 className="text-4xl font-bold text-white mb-4">
+        {content?.headline || 'Ready to Get Started?'}
+      </h2>
+      <p className="text-xl text-white/90 mb-8">
+        {content?.subheadline || 'Join thousands of satisfied customers'}
+      </p>
+      <button
+        className="px-8 py-4 bg-white font-semibold text-lg"
+        style={{
+          color: design.colors.primary,
+          borderRadius: `${design.borderRadius}px`,
+        }}
+      >
+        {content?.ctaText || 'Sign Up Now'}
+      </button>
+    </div>
+  );
+}
+
+function GallerySection({ section, design, content }: any) {
+  return (
+    <div>
+      <h2
+        className="text-4xl font-bold text-center mb-12"
+        style={{ color: design.colors.text }}
+      >
+        {content?.title || 'Gallery'}
+      </h2>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+          <div
+            key={i}
+            className="aspect-square bg-gray-200"
+            style={{ borderRadius: `${design.borderRadius}px` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ContactSection({ section, design, content }: any) {
+  return (
+    <div className="max-w-2xl mx-auto">
+      <h2
+        className="text-4xl font-bold text-center mb-12"
+        style={{ color: design.colors.text }}
+      >
+        {content?.title || 'Contact Us'}
+      </h2>
+      <form className="space-y-6">
+        <input
+          type="text"
+          placeholder="Name"
+          className="w-full px-4 py-3 border"
+          style={{
+            borderRadius: `${design.borderRadius}px`,
+            borderColor: design.colors.textSecondary,
+          }}
+        />
+        <input
+          type="email"
+          placeholder="Email"
+          className="w-full px-4 py-3 border"
+          style={{
+            borderRadius: `${design.borderRadius}px`,
+            borderColor: design.colors.textSecondary,
+          }}
+        />
+        <textarea
+          placeholder="Message"
+          rows={5}
+          className="w-full px-4 py-3 border"
+          style={{
+            borderRadius: `${design.borderRadius}px`,
+            borderColor: design.colors.textSecondary,
+          }}
+        />
+        <button
+          type="submit"
+          className="w-full py-3 text-white font-semibold"
+          style={{
+            backgroundColor: design.colors.primary,
+            borderRadius: `${design.borderRadius}px`,
+          }}
+        >
+          Send Message
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function FooterSection({ section, design, content }: any) {
+  return (
+    <div
+      className="text-center py-8 border-t"
+      style={{ borderColor: design.colors.textSecondary + '20' }}
+    >
+      <p style={{ color: design.colors.textSecondary }}>
+        {content?.copyright || '© 2024 Your Company. All rights reserved.'}
+      </p>
+    </div>
+  );
+}
