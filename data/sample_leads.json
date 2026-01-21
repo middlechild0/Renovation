@@ -1,0 +1,32 @@
+[
+  {
+    "business_name": "Java House",
+    "industry": "Restaurant",
+    "phone": "+254712345678",
+    "email": "contact@javahouse.co.ke",
+    "website": "javahouse.co.ke",
+    "current_website_status": "outdated",
+    "tier": "Tier 2",
+    "contact_channel": "whatsapp_or_sms"
+  },
+  {
+    "business_name": "Nairobi Dental",
+    "industry": "Medical",
+    "phone": "+254723456789",
+    "email": "info@nairobidental.com",
+    "website": "nairobidental.com",
+    "current_website_status": "none",
+    "tier": "Tier 1",
+    "contact_channel": "whatsapp_or_sms"
+  },
+  {
+    "business_name": "River Tech",
+    "industry": "IT",
+    "phone": "+254701111111",
+    "email": "hello@rivertech.co.ke",
+    "website": "rivertech.co.ke",
+    "current_website_status": "slow",
+    "tier": "Tier 3",
+    "contact_channel": "whatsapp_or_sms"
+  }
+]

@@ -1,0 +1,459 @@
+"""
+Enhanced Template Generator
+Builds full-featured responsive HTML templates
+"""
+
+import os
+
+def build_enhanced_template(lead, tokens):
+    """Build enhanced HTML template with design tokens."""
+    
+    business_name = lead.get("business_name", "Business")
+    niche = lead.get("niche", "general")
+    tier = lead.get("tier", "Tier 1")
+    
+    primary = tokens.get("primary", "#2563eb")
+    secondary = tokens.get("secondary", "#3b82f6")
+    accent = tokens.get("accent", "#10b981")
+    
+    enable_payments = os.getenv("ENABLE_PAYMENTS", "0") == "1" or bool(lead.get("enable_payments"))
+    pay_button_html = ""
+    if enable_payments:
+        safe_business = business_name.lower().replace(" ", "-").replace("_", "-")
+        pay_button_html = f"""
+            <a href=\"/pay?business={safe_business}\" style=\"margin-left: 1rem; background: var(--accent); color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none;\">Pay Deposit</a>
+        """
+    
+    html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{business_name} - Professional Landing Page</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #1a1a1a; }}
+        
+        /* Colors */
+        :root {{
+            --primary: {primary};
+            --secondary: {secondary};
+            --accent: {accent};
+            --neutral: #f5f5f5;
+            --dark: #1f2937;
+        }}
+        
+        /* Header */
+        header {{
+            position: sticky;
+            top: 0;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            z-index: 100;
+            padding: 1rem 2rem;
+        }}
+        
+        header .container {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+        
+        header h1 {{
+            font-size: 1.5rem;
+            color: var(--dark);
+        }}
+        
+        header a {{
+            background: var(--primary);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }}
+        
+        header a:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }}
+        
+        /* Hero Section */
+        .hero {{
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 6rem 2rem;
+            text-align: center;
+            animation: fadeIn 0.8s ease;
+        }}
+        
+        .hero .container {{
+            max-width: 600px;
+            margin: 0 auto;
+        }}
+        
+        .hero h2 {{
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }}
+        
+        .hero p {{
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.95;
+        }}
+        
+        .hero button {{
+            background: white;
+            color: var(--primary);
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }}
+        
+        .hero button:hover {{
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }}
+        
+        /* Features Section */
+        .features {{
+            padding: 4rem 2rem;
+            background: var(--neutral);
+        }}
+        
+        .features .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+        
+        .features h2 {{
+            text-align: center;
+            margin-bottom: 3rem;
+            font-size: 2.5rem;
+            color: var(--dark);
+        }}
+        
+        .features-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+        }}
+        
+        .feature-card {{
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            animation: slideUp 0.6s ease;
+        }}
+        
+        .feature-card:hover {{
+            transform: translateY(-8px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+            border-top: 4px solid var(--accent);
+        }}
+        
+        .feature-card h3 {{
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }}
+        
+        .feature-card p {{
+            color: #666;
+            line-height: 1.8;
+        }}
+        
+        /* Testimonials Section */
+        .testimonials {{
+            padding: 4rem 2rem;
+        }}
+        
+        .testimonials .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+        
+        .testimonials h2 {{
+            text-align: center;
+            margin-bottom: 3rem;
+            font-size: 2.5rem;
+            color: var(--dark);
+        }}
+        
+        .testimonials-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }}
+        
+        .testimonial-card {{
+            background: var(--neutral);
+            padding: 2rem;
+            border-radius: 12px;
+            border-left: 4px solid var(--accent);
+            animation: fadeIn 0.8s ease;
+        }}
+        
+        .testimonial-card p {{
+            font-style: italic;
+            color: #555;
+            margin-bottom: 1.5rem;
+        }}
+        
+        .testimonial-card .author {{
+            font-weight: 600;
+            color: var(--primary);
+        }}
+        
+        /* CTA Section */
+        .cta {{
+            background: var(--dark);
+            color: white;
+            padding: 4rem 2rem;
+            text-align: center;
+        }}
+        
+        .cta .container {{
+            max-width: 600px;
+            margin: 0 auto;
+        }}
+        
+        .cta h2 {{
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }}
+        
+        .cta p {{
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }}
+        
+        .cta button {{
+            background: var(--accent);
+            color: white;
+            padding: 1rem 2.5rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }}
+        
+        .cta button:hover {{
+            background: var(--primary);
+            transform: scale(1.05);
+        }}
+        
+        /* Contact Form */
+        .contact-form {{
+            max-width: 500px;
+            margin: 2rem auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }}
+        
+        .contact-form input,
+        .contact-form textarea {{
+            width: 100%;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 1rem;
+        }}
+        
+        .contact-form textarea {{
+            resize: vertical;
+            min-height: 120px;
+        }}
+        
+        .contact-form button {{
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            padding: 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }}
+        
+        .contact-form button:hover {{
+            background: var(--secondary);
+            transform: translateY(-2px);
+        }}
+        
+        /* Footer */
+        footer {{
+            background: var(--dark);
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+        }}
+        
+        footer .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+        
+        footer p {{
+            opacity: 0.8;
+            margin-bottom: 1rem;
+        }}
+        
+        /* Animations */
+        @keyframes fadeIn {{
+            from {{ opacity: 0; }}
+            to {{ opacity: 1; }}
+        }}
+        
+        @keyframes slideUp {{
+            from {{
+                opacity: 0;
+                transform: translateY(20px);
+            }}
+            to {{
+                opacity: 1;
+                transform: translateY(0);
+            }}
+        }}
+        
+        /* Responsive */
+        @media (max-width: 768px) {{
+            .hero h2 {{ font-size: 2rem; }}
+            .features h2, .testimonials h2 {{ font-size: 1.8rem; }}
+            header h1 {{ font-size: 1.2rem; }}
+        }}
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <h1>{business_name}</h1>
+            <div>
+                <a href="#contact">Get Started</a>
+                {pay_button_html}
+            </div>
+        </div>
+    </header>
+    
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h2>Welcome to {business_name}</h2>
+            <p>Experience premium service designed for your success</p>
+            <button onclick="document.getElementById('contact').scrollIntoView({{behavior: 'smooth'}})">
+                Learn More
+            </button>
+        </div>
+    </section>
+    
+    <!-- Features Section -->
+    <section class="features">
+        <div class="container">
+            <h2>Our Services</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h3>🎯 Quality</h3>
+                    <p>Premium quality services tailored to your needs with attention to detail.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>⚡ Speed</h3>
+                    <p>Fast delivery times without compromising on quality or excellence.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>💼 Professional</h3>
+                    <p>Expert team dedicated to your success with proven experience.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Testimonials Section -->
+    <section class="testimonials">
+        <div class="container">
+            <h2>What Our Clients Say</h2>
+            <div class="testimonials-grid">
+                <div class="testimonial-card">
+                    <p>"Exceptional service and outstanding results. Highly recommended!"</p>
+                    <div class="author">— Sarah Johnson</div>
+                </div>
+                <div class="testimonial-card">
+                    <p>"Professional team that delivers beyond expectations. Great experience!"</p>
+                    <div class="author">— Michael Chen</div>
+                </div>
+                <div class="testimonial-card">
+                    <p>"Best decision we made for our business. Fantastic collaboration!"</p>
+                    <div class="author">— Emma Williams</div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="container">
+            <h2>Ready to Get Started?</h2>
+            <p>Join thousands of satisfied clients</p>
+            <button onclick="document.getElementById('contact').scrollIntoView({{behavior: 'smooth'}})">
+                Contact Us Today
+            </button>
+        </div>
+    </section>
+    
+    <!-- Contact Section -->
+    <section id="contact" style="padding: 4rem 2rem; background: var(--neutral);">
+        <div class="container">
+            <h2 style="text-align: center; margin-bottom: 2rem; font-size: 2rem; color: var(--dark);">Get In Touch</h2>
+            <form class="contact-form" onsubmit="handleSubmit(event)">
+                <input type="text" placeholder="Your Name" required>
+                <input type="email" placeholder="Your Email" required>
+                <input type="tel" placeholder="Your Phone" required>
+                <textarea placeholder="Tell us about your project..."></textarea>
+                <button type="submit">Send Message</button>
+            </form>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <h3>{business_name}</h3>
+            <p>&copy; 2025 {business_name}. All rights reserved.</p>
+            <p style="opacity: 0.6; font-size: 0.9rem; margin-top: 1rem;">
+                Competitive Design Generated with AI • Market-Aware • Original
+            </p>
+        </div>
+    </footer>
+    
+    <script>
+        function handleSubmit(event) {{
+            event.preventDefault();
+            alert('Thank you for reaching out! We will contact you soon.');
+            event.target.reset();
+        }}
+    </script>
+</body>
+</html>'''
+    
+    return html
+
+__all__ = ["build_enhanced_template"]

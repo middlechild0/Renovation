@@ -1,0 +1,28 @@
+{
+  "features": {
+    "use_new_architecture": {
+      "enabled": true,
+      "rollout_percentage": 10,
+      "enabled_for": [],
+      "description": "Use new orchestration layer vs. legacy pipeline (gradual rollout)"
+    },
+    "enable_task_registry": {
+      "enabled": true,
+      "description": "Prevent duplicate workflow execution"
+    },
+    "enable_output_validation": {
+      "enabled": true,
+      "rollout_percentage": 100,
+      "description": "Validate demo quality before marking complete"
+    },
+    "enable_proposal_generation": {
+      "enabled": false,
+      "description": "Auto-generate client proposals"
+    },
+    "enable_parallel_scraping": {
+      "enabled": false,
+      "max_workers": 3,
+      "description": "Process multiple cities simultaneously"
+    }
+  }
+}
