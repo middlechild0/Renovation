@@ -25,8 +25,7 @@ class FoursquareScraper:
             "ll": f"{lat},{lng}",
             "radius": radius,
             "categories": category_id,
-            "limit": min(limit, 50),  # Foursquare max is 50 per request
-            "fields": "fsq_id,name,geocodes,location,categories,website,tel,email"
+            "limit": min(limit, 50)  # Foursquare max is 50 per request
         }
         
         try:

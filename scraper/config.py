@@ -10,8 +10,8 @@ load_dotenv()
 @dataclass
 class Config:
     # Foursquare API
-    FOURSQUARE_API_KEY = os.getenv("FOURSQUARE_API_KEY", "")
-    FOURSQUARE_API_URL = "https://api.foursquare.com/v3/places/search"
+    FOURSQUARE_API_KEY = os.getenv("FOURSQUARE_API_KEY", "fsq3FBPRkDnoqoOUO/Kvljd200R1s9pTMq+XlnoVvWoH4Qw="fsq3FBPRkDnoqoOUO/Kvljd200R1s9pTMq+XlnoVvWoH4Qw=)
+    FOURSQUARE_API_URL = "https://api.foursquare.com/v3/places/search"  # Confirmed as latest supported endpoint
     
     # Database
     DATABASE_PATH = "businesses.db"
